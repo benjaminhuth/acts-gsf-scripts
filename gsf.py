@@ -30,6 +30,9 @@ parser.add_argument('-c','--components', help='number of GSF components', type=i
 parser.add_argument('--surfaces', help='number of telescope surfaces', type=int, default=5)
 parser.add_argument('--pmin', help='minimum momentum for particle gun', type=float, default=1.0)
 parser.add_argument('--pmax', help='maximum momentum for particle gun', type=float, default=20.0)
+parser.add_argument('--erroronly', help='set loglevel to show only errors (except sequencer)', default=False, action="store_true")
+parser.add_argument('-v', '--verbose', help='set loglevel to VERBOSE (except for sequencer)', default=False, action="store_true")
+parser.add_argument('--visualize', help='visualize the GDML geometry and exit', default=False, action="store_true")
 args = vars(parser.parse_args())
 
 ##################
@@ -37,14 +40,11 @@ args = vars(parser.parse_args())
 ##################
 
 surface_distance = 50
-surface_thickness = 1
+surface_thickness = 0.5
 surface_width = 1000
 
-# to match geant4 geometry
-x_offset = args["surfaces"] * surface_distance / 2
-
 telescopeConfig = {
-    "positions": np.arange(-x_offset, args["surfaces"]*surface_distance, surface_distance).tolist(),
+    "positions": np.arange(0, args["surfaces"]*surface_distance, surface_distance).tolist(),
     # "offsets": foo,
     "bounds": [surface_width, surface_width], #[args["surfaces"]*10, args["surfaces"]*10],
     "thickness": 1,
@@ -61,7 +61,11 @@ detector, trackingGeometry, decorators = acts.examples.TelescopeDetector.create(
 
 # Geant 4
 gdml_file = "gdml/telescope.gdml"
-make_gdml(gdml_file, args["surfaces"], surface_width, surface_thickness, surface_distance)
+make_gdml(gdml_file, args["surfaces"], surface_width, surface_thickness, surface_distance, args["visualize"])
+
+if args["visualize"]:
+    exit(0);
+
 g4detector = GdmlDetectorConstruction(gdml_file)
 
 ###################
@@ -69,9 +73,11 @@ g4detector = GdmlDetectorConstruction(gdml_file)
 ###################
 
 outputDir = Path(".")
-field = acts.ConstantBField(acts.Vector3(0.0, 0.0, 2.0 * u.T))
+field = acts.ConstantBField(acts.Vector3(0.0, 0.0, 2 * u.T))
 rnd = acts.examples.RandomNumbers(seed=42)
 use_geant = True
+defaultLogLevel = acts.logging.FATAL if args["erroronly"] else acts.logging.INFO
+defaultLogLevel = acts.logging.VERBOSE if args["verbose"] else defaultLogLevel
 
 if use_geant:
     args["jobs"] = 1
@@ -80,13 +86,14 @@ s = acts.examples.Sequencer(
     events=args["events"],
     numThreads=args["jobs"],
     outputDir=str(outputDir),
-    skip=args["skip"]
+    skip=args["skip"],
+    logLevel=acts.logging.INFO,
 )
 
 (outputDir / "csv").mkdir(exist_ok=True, parents=True)
 s.addWriter(
     acts.examples.CsvTrackingGeometryWriter(
-        level=acts.logging.INFO,
+        level=defaultLogLevel,
         trackingGeometry=trackingGeometry,
         outputDir=str(outputDir / "csv"),
         writePerEvent=False,
@@ -126,7 +133,6 @@ else:
         outputDirCsv="csv"
     )
 
-'''
 addDigitization(
     s,
     trackingGeometry,
@@ -137,16 +143,26 @@ addDigitization(
     outputDirCsv=None, #"csv"
 )
 
+
+# addParticleSelection(
+#     s,
+#     ParticleSelectorConfig(removeNeutral=True, rho=(0,10)),
+#     inputParticles="particles_initial",
+#     outputParticles="particles_initial_selected_post_sim",
+# )
+
 addSeeding(
     s,
     trackingGeometry,
     field,
+    # inputParticles="particles_initial_selected_post_sim",
     seedingAlgorithm=SeedingAlgorithm.TruthSmeared,
+    logLevel=acts.logging.INFO
 )
 
 s.addAlgorithm(
     acts.examples.TruthTrackFinder(
-        level=acts.logging.INFO,
+        level=defaultLogLevel,
         inputParticles="truth_seeds_selected",
         inputMeasurementParticlesMap="measurement_particles_map",
         outputProtoTracks="prototracks",
@@ -162,7 +178,7 @@ kalmanOptions = {
 
 s.addAlgorithm(
     acts.examples.TrackFittingAlgorithm(
-        level=acts.logging.VERBOSE if args["pick"] != -1 else acts.logging.INFO,
+        level=acts.logging.VERBOSE if args["pick"] != -1 else defaultLogLevel,
         inputMeasurements="measurements",
         inputSourceLinks="sourcelinks",
         inputProtoTracks="prototracks",
@@ -190,7 +206,7 @@ pprint.pprint(gsfOptions)
 
 s.addAlgorithm(
     acts.examples.TrackFittingAlgorithm(
-        level=acts.logging.VERBOSE if args["pick"] != -1 else acts.logging.INFO,
+        level=acts.logging.VERBOSE if args["pick"] != -1 else defaultLogLevel,
         inputMeasurements="measurements",
         inputSourceLinks="sourcelinks",
         inputProtoTracks="prototracks",
@@ -207,7 +223,7 @@ s.addAlgorithm(
 
 s.addWriter(
     acts.examples.RootTrajectorySummaryWriter(
-        level=acts.logging.INFO,
+        level=acts.logging.ERROR,
         inputTrajectories="gsf_trajectories",
         inputParticles="truth_seeds_selected",
         inputMeasurementParticlesMap="measurement_particles_map",
@@ -217,12 +233,12 @@ s.addWriter(
 
 s.addWriter(
     acts.examples.RootTrajectorySummaryWriter(
-        level=acts.logging.INFO,
+        level=acts.logging.ERROR,
         inputTrajectories="trajectories",
         inputParticles="truth_seeds_selected",
         inputMeasurementParticlesMap="measurement_particles_map",
         filePath=str(outputDir / "root/tracksummary_kf.root"),
     )
 )
-'''
+
 s.run()
