@@ -4,3 +4,8 @@ gdml
 timing.tsv
 __pycache__
 .ipynb_checkpoints
+*.txt
+
+# These are symbolic links
+analysis.py
+plotting_pipe.py
