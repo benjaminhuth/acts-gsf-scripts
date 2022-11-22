@@ -13,68 +13,7 @@ from acts.examples.geant4 import GdmlDetectorConstruction
 
 import numpy as np
 
-from gdml_telescope import *
-
 u = acts.UnitConstants
-
-
-@acts.examples.NamedTypeArgs(
-    preselectParticles=ParticleSelectorConfig,
-)
-def myAddFatras(
-    s: acts.examples.Sequencer,
-    trackingGeometry: acts.TrackingGeometry,
-    field: acts.MagneticFieldProvider,
-    outputDirCsv: Optional[Union[Path, str]] = None,
-    outputDirRoot: Optional[Union[Path, str]] = None,
-    rnd: Optional[acts.examples.RandomNumbers] = None,
-    preselectParticles: Optional[ParticleSelectorConfig] = ParticleSelectorConfig(),
-    logLevel: Optional[acts.logging.Level] = None,
-) -> None:
-    customLogLevel = acts.examples.defaultLogging(s, logLevel)
-
-    # Preliminaries
-    rnd = rnd or acts.examples.RandomNumbers()
-
-    # Selector
-    if preselectParticles is not None:
-        particles_selected = "particles_selected"
-        addParticleSelection(
-            s,
-            preselectParticles,
-            inputParticles="particles_input",
-            outputParticles=particles_selected,
-        )
-    else:
-        particles_selected = "particles_input"
-
-    # Simulation
-    alg = acts.examples.FatrasSimulation(
-        level=customLogLevel(),
-        inputParticles=particles_selected,
-        outputParticlesInitial="particles_initial",
-        outputParticlesFinal="particles_final",
-        outputSimHits="simhits",
-        randomNumbers=rnd,
-        trackingGeometry=trackingGeometry,
-        magneticField=field,
-        generateHitsOnSensitive=True,
-        emEnergyLossRadiation=True,
-    )
-
-    # Sequencer
-    s.addAlgorithm(alg)
-
-    # Output
-    addSimWriters(
-        s,
-        alg.config.outputSimHits,
-        outputDirCsv,
-        outputDirRoot,
-        logLevel=logLevel,
-    )
-
-    return s
 
 #####################
 # Cmd line handling #
@@ -91,7 +30,6 @@ parser.add_argument('--pmin', help='minimum momentum for particle gun', type=flo
 parser.add_argument('--pmax', help='maximum momentum for particle gun', type=float, default=20.0)
 parser.add_argument('--erroronly', help='set loglevel to show only errors (except sequencer)', default=False, action="store_true")
 parser.add_argument('-v', '--verbose', help='set loglevel to VERBOSE (except for sequencer)', default=False, action="store_true")
-parser.add_argument('--visualize', help='visualize the GDML geometry and exit', default=False, action="store_true")
 parser.add_argument('--fatras', help='use fatras instead of geant4', default=False, action="store_true")
 args = vars(parser.parse_args())
 
@@ -100,7 +38,7 @@ args = vars(parser.parse_args())
 ##################
 
 surface_distance = 50
-surface_thickness = 1
+surface_thickness = 0.5
 surface_width = 1000
 
 telescopeConfig = {
@@ -112,21 +50,9 @@ telescopeConfig = {
     "binValue": 0,
 }
 
-# pprint.pprint(telescopeConfig)
-
-
 detector, trackingGeometry, decorators = acts.examples.TelescopeDetector.create(
     **telescopeConfig
 )
-
-# Geant 4
-gdml_file = "gdml/telescope.gdml"
-make_gdml(gdml_file, args["surfaces"], surface_width, surface_thickness, surface_distance, args["visualize"])
-
-if args["visualize"]:
-    exit(0);
-
-g4detector = GdmlDetectorConstruction(gdml_file)
 
 ###################
 # Setup sequencer #
@@ -177,22 +103,22 @@ addParticleGun(
 if use_geant:
     addGeant4(
         s,
-        g4detector,
+        detector,
         trackingGeometry,
         field,
         rnd,
         outputDirCsv="csv",
-        materialMappings=["G4_Si"],
         logLevel=defaultLogLevel,
     )
 else:
-    myAddFatras(
+    addFatras(
         s,
         trackingGeometry,
         field,
         rnd=rnd,
         outputDirCsv="csv",
         logLevel=defaultLogLevel,
+        enableInteractions=True,
     )
 
 addDigitization(
@@ -266,7 +192,7 @@ gsfOptions = {
         "/home/benjamin/Documents/athena/Tracking/TrkFitter/TrkGaussianSumFilter/Data/GeantSim_GT01_cdf_nC6_O5.par",
     ),
     "finalReductionMethod": acts.examples.FinalReductionMethod.maxWeight,
-    "weightCutoff": 1.e-4,
+    "weightCutoff": 1.e-8,
 }
 pprint.pprint(gsfOptions)
 
@@ -332,3 +258,26 @@ s.addWriter(
 )
 
 s.run()
+del s
+
+if args["pick"] != -1:
+    exit()
+
+# Analysis
+import analysis
+import matplotlib.pyplot as plt
+import uproot
+
+summary_gsf = uproot.open("root/tracksummary_gsf.root:tracksummary")
+summary_kf = uproot.open("root/tracksummary_kf.root:tracksummary")
+trackstates_gsf = uproot.open("root/trackstates_gsf.root:trackstates")
+trackstates_kf = uproot.open("root/trackstates_kf.root:trackstates")
+
+analysis.make_ratio_plot(summary_gsf, summary_kf)
+# analysis.performance_at_trackstates(trackstates_gsf, 'x')
+analysis.plot_at_track_position(-1, trackstates_gsf, "GSF", 'x', clip_abs=(0,2*args["pmax"]))
+analysis.plot_at_track_position(0, trackstates_gsf, "GSF", 'x', clip_abs=(0,2*args["pmax"]))
+
+plt.show()
+
+
