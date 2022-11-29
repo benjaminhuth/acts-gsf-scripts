@@ -1,7 +1,10 @@
 from pathlib import Path
+from typing import Union, Optional
 import math
 import pprint
 import os
+from tempfile import NamedTemporaryFile
+import textwrap
 
 import argparse
 
@@ -25,12 +28,14 @@ parser.add_argument('-n','--events', help='number of events', type=int, default=
 parser.add_argument('-j','--jobs', help='number of jobs', type=int, default=-1)
 parser.add_argument('-s','--skip', help='number of skipped events', type=int, default=0)
 parser.add_argument('-c','--components', help='number of GSF components', type=int, default=4)
-parser.add_argument('--surfaces', help='number of telescope surfaces', type=int, default=5)
+parser.add_argument('--surfaces', help='number of telescope surfaces', type=int, default=10)
 parser.add_argument('--pmin', help='minimum momentum for particle gun', type=float, default=1.0)
 parser.add_argument('--pmax', help='maximum momentum for particle gun', type=float, default=20.0)
 parser.add_argument('--erroronly', help='set loglevel to show only errors (except sequencer)', default=False, action="store_true")
+parser.add_argument('--debug', help='set loglevel to show debug', default=False, action="store_true")
 parser.add_argument('-v', '--verbose', help='set loglevel to VERBOSE (except for sequencer)', default=False, action="store_true")
 parser.add_argument('--fatras', help='use fatras instead of geant4', default=False, action="store_true")
+parser.add_argument('--particle_smearing', help='value used for initial particle smearing', type=float, default=None)
 args = vars(parser.parse_args())
 
 ##################
@@ -43,7 +48,7 @@ surface_width = 1000
 
 telescopeConfig = {
     "positions": np.arange(0, args["surfaces"]*surface_distance, surface_distance).tolist(),
-    # "offsets": foo,
+    # "offsets": [0,0],
     "bounds": [surface_width, surface_width], #[args["surfaces"]*10, args["surfaces"]*10],
     "thickness": surface_thickness,
     "surfaceType": 0,
@@ -63,6 +68,7 @@ field = acts.ConstantBField(acts.Vector3(0.0, 0.0, 2 * u.T))
 rnd = acts.examples.RandomNumbers(seed=42)
 use_geant = False if args["fatras"] else True
 defaultLogLevel = acts.logging.FATAL if args["erroronly"] else acts.logging.INFO
+defaultLogLevel = acts.logging.DEBUG if args["debug"] else defaultLogLevel
 defaultLogLevel = acts.logging.VERBOSE if args["verbose"] else defaultLogLevel
 
 if use_geant:
@@ -86,11 +92,14 @@ s.addWriter(
     )
 )
 
+abs_eta = 0.01
+abs_phi = 0.01
+
 addParticleGun(
     s,
     MomentumConfig(args['pmin'] * u.GeV, args['pmax'] * u.GeV, transverse=True),
-    EtaConfig(-0.01, 0.01, uniform=True),
-    PhiConfig(-0.01, 0.01),
+    EtaConfig(-abs_eta, abs_eta, uniform=True),
+    PhiConfig(-abs_phi, abs_phi),
     ParticleConfig(1, acts.PdgParticle.eElectron, randomizeCharge=False),
     rnd=rnd,
     vtxGen=acts.examples.GaussianVertexGenerator(
@@ -121,16 +130,40 @@ else:
         enableInteractions=True,
     )
 
-addDigitization(
-    s,
-    trackingGeometry,
-    field,
-    digiConfigFile="telescope-digi-smearing-config.json",
-    # outputDirRoot=outputDir,
-    rnd=rnd,
-    outputDirCsv=None, #"csv"
-    logLevel=defaultLogLevel,
-)
+with NamedTemporaryFile() as fp:
+    stddev = 0.0001
+    content = """
+        {{
+            "acts-geometry-hierarchy-map" : {{
+                "format-version" : 0,
+                "value-identifier" : "digitization-configuration"
+            }},
+            "entries": [
+                {{
+                    "volume" : 0,
+                    "value" : {{
+                        "smearing" : [
+                            {{"index" : 0, "mean" : 0.0, "stddev" : {}, "type" : "Gauss"}},
+                            {{"index" : 1, "mean" : 0.0, "stddev" : {}, "type" : "Gauss"}}
+                        ]
+                    }}
+                }}
+            ]
+        }}""".format(stddev, stddev)
+    content = textwrap.dedent(content)
+    fp.write(str.encode(content))
+    fp.flush()
+
+    addDigitization(
+        s,
+        trackingGeometry,
+        field,
+        digiConfigFile=fp.name,
+        # outputDirRoot=outputDir,
+        rnd=rnd,
+        outputDirCsv=None, #"csv"
+        logLevel=defaultLogLevel,
+    )
 
 addParticleSelection(
     s,
@@ -145,6 +178,7 @@ addSeeding(
     trackingGeometry,
     field,
     inputParticles="particles_initial_selected_post_sim",
+    particleSmearingSigmas=10*[ args["particle_smearing"] ],
     seedingAlgorithm=SeedingAlgorithm.TruthSmeared,
     logLevel=defaultLogLevel,
     truthSeedRanges=TruthSeedRanges(rho=(0.0, 1.0), nHits=(6,None)),
@@ -193,6 +227,7 @@ gsfOptions = {
     ),
     "finalReductionMethod": acts.examples.FinalReductionMethod.maxWeight,
     "weightCutoff": 1.e-8,
+    "minimalMomentumThreshold": 0.0,
 }
 pprint.pprint(gsfOptions)
 
@@ -260,9 +295,6 @@ s.addWriter(
 s.run()
 del s
 
-if args["pick"] != -1:
-    exit()
-
 # Analysis
 import analysis
 import matplotlib.pyplot as plt
@@ -273,10 +305,27 @@ summary_kf = uproot.open("root/tracksummary_kf.root:tracksummary")
 trackstates_gsf = uproot.open("root/trackstates_gsf.root:trackstates")
 trackstates_kf = uproot.open("root/trackstates_kf.root:trackstates")
 
-analysis.make_ratio_plot(summary_gsf, summary_kf)
-# analysis.performance_at_trackstates(trackstates_gsf, 'x')
-analysis.plot_at_track_position(-1, trackstates_gsf, "GSF", 'x', clip_abs=(0,2*args["pmax"]))
-analysis.plot_at_track_position(0, trackstates_gsf, "GSF", 'x', clip_abs=(0,2*args["pmax"]))
+
+if args["pick"] == -1:
+    analysis.make_ratio_plot(summary_gsf, summary_kf, log_scale=True)
+    # analysis.performance_at_trackstates(trackstates_gsf, 'x')
+    analysis.plot_at_track_position(-1, trackstates_gsf, "GSF", 'x', clip_abs=(0,2*args["pmax"]))
+    analysis.plot_at_track_position(0, trackstates_gsf, "GSF", 'x', clip_abs=(0,2*args["pmax"]))
+
+    print("GSF correlation plots")
+    fig, ax = analysis.correlation_plots(summary_gsf, trackstates_gsf, clip_res=(-4,4))
+    fig.suptitle("Correlation plots GSF")
+
+    print("")
+    print("KF correlation plots")
+    fig, ax = analysis.correlation_plots(summary_kf, trackstates_kf, clip_res=(-4,4))
+    fig.suptitle("Correlation plots KF")
+else:
+    fig, ax = analysis.single_particle_momentumplot(summary_gsf, trackstates_gsf, "fwd", "bwd")
+    ax.set_title("GSF single particle")
+
+    fig, ax = analysis.single_particle_momentumplot(summary_kf, trackstates_kf, "prt", "flt")
+    ax.set_title("KF single particle")
 
 plt.show()
 
