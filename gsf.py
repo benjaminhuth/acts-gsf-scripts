@@ -34,8 +34,11 @@ parser.add_argument('--pmax', help='maximum momentum for particle gun', type=flo
 parser.add_argument('--erroronly', help='set loglevel to show only errors (except sequencer)', default=False, action="store_true")
 parser.add_argument('--debug', help='set loglevel to show debug', default=False, action="store_true")
 parser.add_argument('-v', '--verbose', help='set loglevel to VERBOSE (except for sequencer)', default=False, action="store_true")
-parser.add_argument('--fatras', help='use fatras instead of geant4', default=False, action="store_true")
+parser.add_argument('--fatras', help='use FATRAS instead of Geant4', default=False, action="store_true")
 parser.add_argument('--particle_smearing', help='value used for initial particle smearing', type=float, default=None)
+parser.add_argument('--smearing', help='stddev for the pixel smearing', type=float, default=0.01)
+parser.add_argument('--no_plt_show', help='do not show plots', action="store_true", default=False)
+parser.add_argument('--disable_fatras_interactions', help="no  interactions in FATRAS", default=False, action="store_true")
 args = vars(parser.parse_args())
 
 ##################
@@ -127,11 +130,10 @@ else:
         rnd=rnd,
         outputDirCsv="csv",
         logLevel=defaultLogLevel,
-        enableInteractions=True,
+        enableInteractions=not args["disable_fatras_interactions"],
     )
 
 with NamedTemporaryFile() as fp:
-    stddev = 0.0001
     content = """
         {{
             "acts-geometry-hierarchy-map" : {{
@@ -149,7 +151,7 @@ with NamedTemporaryFile() as fp:
                     }}
                 }}
             ]
-        }}""".format(stddev, stddev)
+        }}""".format(args["smearing"], args["smearing"])
     content = textwrap.dedent(content)
     fp.write(str.encode(content))
     fp.flush()
@@ -182,6 +184,7 @@ addSeeding(
     seedingAlgorithm=SeedingAlgorithm.TruthSmeared,
     logLevel=defaultLogLevel,
     truthSeedRanges=TruthSeedRanges(rho=(0.0, 1.0), nHits=(6,None)),
+    initialVarInflation=6*[100.0],
 )
 
 s.addAlgorithm(
@@ -227,7 +230,7 @@ gsfOptions = {
     ),
     "finalReductionMethod": acts.examples.FinalReductionMethod.maxWeight,
     "weightCutoff": 1.e-8,
-    "minimalMomentumThreshold": 0.0,
+    # "minimalMomentumThreshold": 0.,
 }
 pprint.pprint(gsfOptions)
 
@@ -326,6 +329,9 @@ else:
 
     fig, ax = analysis.single_particle_momentumplot(summary_kf, trackstates_kf, "prt", "flt")
     ax.set_title("KF single particle")
+
+if args["no_plt_show"]:
+    exit(0)
 
 plt.show()
 
