@@ -11,5 +11,4 @@ __pycache__
 run*.sh
 
 # These are symbolic links
-analysis.py
 plotting_pipe.py

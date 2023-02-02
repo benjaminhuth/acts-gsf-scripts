@@ -72,7 +72,7 @@ elif args["detector"] == "odd":
 
     oddMaterialMap = oddDir / "data/odd-material-maps.root"
     # digiConfigFile = oddDir / "config/odd-digi-smearing-config.json"
-    digiConfigFile = "odd/odd-digi-smearing-config.json"
+    digiConfigFile = "odd-config/odd-digi-smearing-config.json"
     oddMaterialDeco = acts.IMaterialDecorator.fromFile(oddMaterialMap)
 
     detector, trackingGeometry, decorators = getOpenDataDetector(
@@ -117,28 +117,17 @@ s.addWriter(
     )
 )
 
-if args["detector"] == "telescope":
-    vertex_stddev = acts.Vector4(
-        0, 0, 0, 0
-    )
-    abs_eta = 0.01
-    abs_phi = 0.01
-else:
-    vertex_stddev = acts.Vector4(
-        0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns
-    )
-    abs_eta = 3
-    abs_phi = np.pi
-
+realistic_stddev = acts.Vector4(0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns)
 addParticleGun(
     s,
     MomentumConfig(args['pmin'] * u.GeV, args['pmax'] * u.GeV, transverse=False),
-    EtaConfig(-abs_eta, abs_eta, uniform=True),
-    PhiConfig(-abs_phi, abs_phi),
+    EtaConfig(-0.01, 0.01) if args["detector"] == "telescope" else EtaConfig(-3, 3),
+    PhiConfig(-0.01, 0.01) if args["detector"] == "telescope" else PhiConfig(0, 2*np.pi),
     ParticleConfig(1, acts.PdgParticle.eElectron, randomizeCharge=False),
     rnd=rnd,
     vtxGen=acts.examples.GaussianVertexGenerator(
-        stddev=vertex_stddev, mean=acts.Vector4(0, 0, 0, 0)
+        mean=acts.Vector4(0, 0, 0, 0),
+        stddev=acts.Vector4(0, 0, 0, 0), # if args["detector"] == "telescope" else realistic_stddev,
     ),
     multiplicity=1000,
     logLevel=defaultLogLevel,
@@ -152,7 +141,7 @@ if use_geant:
         field,
         rnd,
         outputDirCsv="csv",
-        logLevel=defaultLogLevel,
+        logLevel=acts.logging.INFO,
     )
 else:
     addFatras(
@@ -220,7 +209,7 @@ addParticleSelection(
     inputParticles="particles_initial",
     inputSimHits="simhits",
     outputParticles="particles_initial_selected_post_sim",
-    logLevel=acts.logging.DEBUG # defaultLogLevel,
+    logLevel=defaultLogLevel,
 )
 
 addSeeding(
@@ -281,7 +270,7 @@ gsfOptions = {
     ),
     "finalReductionMethod": acts.examples.FinalReductionMethod.maxWeight,
     "weightCutoff": 1.e-4,
-    "level": acts.logging.VERBOSE if args["pick"] != -1 else acts.logging.ERROR, #defaultLogLevel,
+    "level": acts.logging.VERBOSE if args["pick"] != -1 or args["verbose"] else acts.logging.ERROR,
     # "minimalMomentumThreshold": 0.,
 }
 pprint.pprint(gsfOptions)
@@ -353,9 +342,22 @@ del s
 # Bring geometry file to top for convenience
 shutil.copyfile(outputDir / "csv/detectors.csv", Path.cwd() / "detectors.csv")
 
+# Save configuration
+import json
+with open(outputDir/"config.json") as f:
+    gsfConfig = gsfOptions.copy()
+
+    del gsfConfig["betheHeitlerApprox"]
+    gsfConfig["finalReductionMethod"] = str(gsfConfig["finalReductionMethod"])
+
+    config = args.copy()
+    config["gsf"] = gsfOptions
+    json.dump(args, f)
+
 # Analysis
 import analysis
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 import uproot
 import time
 
@@ -365,32 +367,48 @@ trackstates_gsf = uproot.open(str(outputDir/"root/trackstates_gsf.root:trackstat
 trackstates_kf = uproot.open(str(outputDir/"root/trackstates_kf.root:trackstates"))
 
 
+pdfreport = PdfPages(outputDir/'report.pdf')
+
 if args["pick"] == -1:
-    analysis.make_ratio_plot(summary_gsf, summary_kf, log_scale=True)
+    fig, _ = analysis.make_ratio_plot(summary_gsf, summary_kf, log_scale=True, bins=50)
+    fig.suptitle("Ratio/Res plot (log)")
+    fig.tight_layout()
+    pdfreport.savefig(fig)
+
+    fig, _ = analysis.make_ratio_plot(summary_gsf, summary_kf, log_scale=False)
+    fig.suptitle("Ratio/Res plot")
+    fig.tight_layout()
+    pdfreport.savefig(fig)
+
     # analysis.performance_at_trackstates(trackstates_gsf, 'x')
     # analysis.plot_at_track_position(-1, trackstates_gsf, "GSF", 'x', clip_abs=(0,2*args["pmax"]))
     # analysis.plot_at_track_position(0, trackstates_gsf, "GSF", 'x', clip_abs=(0,2*args["pmax"]))
 
     print("GSF correlation plots")
-    fig, ax = analysis.correlation_plots(summary_gsf, trackstates_gsf, clip_res=(-8,8), print_fail_idxs=True)
+    fig, ax = analysis.correlation_plots(summary_gsf, trackstates_gsf, clip_res=(-8,8))
     fig.suptitle("Correlation plots GSF")
     fig.tight_layout()
+    pdfreport.savefig(fig)
 
     print("")
     print("KF correlation plots")
     fig, ax = analysis.correlation_plots(summary_kf, trackstates_kf, clip_res=(-8,8))
     fig.suptitle("Correlation plots KF")
     fig.tight_layout()
+    pdfreport.savefig(fig)
 else:
     fig, ax = analysis.single_particle_momentumplot(summary_gsf, trackstates_gsf, "fwd", "bwd")
     ax.set_title("GSF single particle")
     fig.tight_layout()
+    pdfreport.savefig(fig)
 
     fig, ax = analysis.single_particle_momentumplot(summary_kf, trackstates_kf, "prt", "flt")
     ax.set_title("KF single particle")
     fig.tight_layout()
+    pdfreport.savefig(fig)
 
 if args["no_plt_show"]:
     exit(0)
 
+pdfreport.close()
 plt.show()
