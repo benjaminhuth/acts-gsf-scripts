@@ -39,8 +39,9 @@ parser.add_argument('-v', '--verbose', help='set loglevel to VERBOSE (except for
 parser.add_argument('--fatras', help='use FATRAS instead of Geant4', default=False, action="store_true")
 parser.add_argument('--particle_smearing', help='value used for initial particle smearing', type=float, default=None)
 parser.add_argument('--smearing', help='stddev for the pixel smearing', type=float, default=0.01)
-parser.add_argument('--no_plt_show', help='do not show plots', action="store_true", default=False)
+parser.add_argument('--plt_show', help='Call plt.show() in the end', action="store_true", default=False)
 parser.add_argument('--disable_fatras_interactions', help="no  interactions in FATRAS", default=False, action="store_true")
+parser.add_argument('-o', '--output', help="Override default output dir")
 args = vars(parser.parse_args())
 
 ##################
@@ -72,7 +73,7 @@ elif args["detector"] == "odd":
 
     oddMaterialMap = oddDir / "data/odd-material-maps.root"
     # digiConfigFile = oddDir / "config/odd-digi-smearing-config.json"
-    digiConfigFile = "odd-config/odd-digi-smearing-config.json"
+    digiConfigFile = "config/odd/odd-digi-smearing-config.json"
     oddMaterialDeco = acts.IMaterialDecorator.fromFile(oddMaterialMap)
 
     detector, trackingGeometry, decorators = getOpenDataDetector(
@@ -86,7 +87,11 @@ elif args["detector"] == "sphenix":
 # Setup sequencer #
 ###################
 
-outputDir = Path.cwd() / "output_{}".format(args["detector"])
+if args["output"] is not None:
+    outputDir = Path(args["output"])
+else:
+    outputDir = Path.cwd() / "output_{}".format(args["detector"])
+    
 (outputDir / "root").mkdir(parents=True, exist_ok=True)
 (outputDir / "csv").mkdir(exist_ok=True, parents=True)
 
@@ -292,49 +297,28 @@ s.addAlgorithm(
     )
 )
 
-s.addWriter(
-    acts.examples.RootTrajectorySummaryWriter(
-        level=acts.logging.ERROR,
-        inputTrajectories="gsf_trajectories",
-        inputParticles="truth_seeds_selected",
-        inputMeasurementParticlesMap="measurement_particles_map",
-        filePath=str(outputDir / "root/tracksummary_gsf.root"),
+for trajectories, postfix in zip(("gsf_trajectories", "trajectories"), ("gsf", "kf")):
+    s.addWriter(
+        acts.examples.RootTrajectorySummaryWriter(
+            level=acts.logging.ERROR,
+            inputTrajectories=trajectories,
+            inputParticles="truth_seeds_selected",
+            inputMeasurementParticlesMap="measurement_particles_map",
+            filePath=str(outputDir / "root/tracksummary_{}.root".format(postfix)),
+        )
     )
-)
 
-s.addWriter(
-    acts.examples.RootTrajectoryStatesWriter(
-        level=acts.logging.ERROR,
-        inputTrajectories="gsf_trajectories",
-        inputParticles="truth_seeds_selected",
-        inputSimHits="simhits",
-        inputMeasurementParticlesMap="measurement_particles_map",
-        inputMeasurementSimHitsMap="measurement_simhits_map",
-        filePath=str(outputDir / "root/trackstates_gsf.root"),
+    s.addWriter(
+        acts.examples.RootTrajectoryStatesWriter(
+            level=acts.logging.ERROR,
+            inputTrajectories=trajectories,
+            inputParticles="truth_seeds_selected",
+            inputSimHits="simhits",
+            inputMeasurementParticlesMap="measurement_particles_map",
+            inputMeasurementSimHitsMap="measurement_simhits_map",
+            filePath=str(outputDir / "root/trackstates_{}.root".format(postfix)),
+        )
     )
-)
-
-s.addWriter(
-    acts.examples.RootTrajectorySummaryWriter(
-        level=acts.logging.ERROR,
-        inputTrajectories="trajectories",
-        inputParticles="truth_seeds_selected",
-        inputMeasurementParticlesMap="measurement_particles_map",
-        filePath=str(outputDir / "root/tracksummary_kf.root"),
-    )
-)
-
-s.addWriter(
-    acts.examples.RootTrajectoryStatesWriter(
-        level=acts.logging.ERROR,
-        inputTrajectories="trajectories",
-        inputParticles="truth_seeds_selected",
-        inputSimHits="simhits",
-        inputMeasurementParticlesMap="measurement_particles_map",
-        inputMeasurementSimHitsMap="measurement_simhits_map",
-        filePath=str(outputDir / "root/trackstates_kf.root"),
-    )
-)
 
 s.run()
 del s
@@ -344,15 +328,18 @@ shutil.copyfile(outputDir / "csv/detectors.csv", Path.cwd() / "detectors.csv")
 
 # Save configuration
 import json
-with open(outputDir/"config.json") as f:
+with open(outputDir/"config.json", "w") as f:
     gsfConfig = gsfOptions.copy()
 
     del gsfConfig["betheHeitlerApprox"]
+    del gsfConfig["level"]
     gsfConfig["finalReductionMethod"] = str(gsfConfig["finalReductionMethod"])
+    gsfConfig["low_bhapprox"] = low_bhapprox
+    gsfConfig["high_bhapprox"] = high_bhapprox
 
     config = args.copy()
-    config["gsf"] = gsfOptions
-    json.dump(args, f)
+    config["gsf"] = gsfConfig
+    json.dump(config, f, indent=4)
 
 # Analysis
 import analysis
@@ -361,54 +348,68 @@ from matplotlib.backends.backend_pdf import PdfPages
 import uproot
 import time
 
-summary_gsf = uproot.open(str(outputDir/"root/tracksummary_gsf.root:tracksummary"))
-summary_kf = uproot.open(str(outputDir/"root/tracksummary_kf.root:tracksummary"))
-trackstates_gsf = uproot.open(str(outputDir/"root/trackstates_gsf.root:trackstates"))
-trackstates_kf = uproot.open(str(outputDir/"root/trackstates_kf.root:trackstates"))
+summary_gsf, states_gsf = analysis.uproot_to_pandas(
+    uproot.open(str(outputDir / "root/tracksummary_gsf.root:tracksummary")),
+    uproot.open(str(outputDir / "root/trackstates_gsf.root:trackstates"))
+)
 
+summary_kf, states_kf = analysis.uproot_to_pandas(
+    uproot.open(str(outputDir / "root/tracksummary_kf.root:tracksummary")),
+    uproot.open(str(outputDir / "root/trackstates_kf.root:trackstates"))
+)
 
 pdfreport = PdfPages(outputDir/'report.pdf')
 
+####################
+# Collective plots #
+####################
 if args["pick"] == -1:
-    fig, _ = analysis.make_ratio_plot(summary_gsf, summary_kf, log_scale=True, bins=50)
+    fig, _ = analysis.ratio_residual_plot(summary_gsf, summary_kf, log_scale=True, bins=50)
     fig.suptitle("Ratio/Res plot (log)")
     fig.tight_layout()
     pdfreport.savefig(fig)
 
-    fig, _ = analysis.make_ratio_plot(summary_gsf, summary_kf, log_scale=False)
+    fig, _ = analysis.ratio_residual_plot(summary_gsf, summary_kf, log_scale=False)
     fig.suptitle("Ratio/Res plot")
     fig.tight_layout()
     pdfreport.savefig(fig)
+    
+    main_direction = "x" if args["detector"] == "telescope" else "r"
 
-    # analysis.performance_at_trackstates(trackstates_gsf, 'x')
-    # analysis.plot_at_track_position(-1, trackstates_gsf, "GSF", 'x', clip_abs=(0,2*args["pmax"]))
-    # analysis.plot_at_track_position(0, trackstates_gsf, "GSF", 'x', clip_abs=(0,2*args["pmax"]))
+    #analysis.performance_at_trackstates(trackstates_gsf, 'x')
+    
+    for summary, states, name in zip([summary_gsf, summary_kf], [states_gsf, states_kf], ["GSF", "KF"]):
+        fig, _ = analysis.plot_at_track_position(-1, states, name, main_direction, clip_abs=(0,2*args["pmax"]))
+        fig.suptitle("{} at first surface".format(name))
+        fig.tight_layout()
+        pdfreport.savefig(fig)
+        
+        fig, _ = analysis.plot_at_track_position(0, states, name, main_direction, clip_abs=(0,2*args["pmax"]))
+        fig.suptitle("{} at last surface".format(name))
+        fig.tight_layout()
+        pdfreport.savefig(fig)
 
-    print("GSF correlation plots")
-    fig, ax = analysis.correlation_plots(summary_gsf, trackstates_gsf, clip_res=(-8,8))
-    fig.suptitle("Correlation plots GSF")
-    fig.tight_layout()
-    pdfreport.savefig(fig)
-
-    print("")
-    print("KF correlation plots")
-    fig, ax = analysis.correlation_plots(summary_kf, trackstates_kf, clip_res=(-8,8))
-    fig.suptitle("Correlation plots KF")
-    fig.tight_layout()
-    pdfreport.savefig(fig)
+        fig, ax = analysis.correlation_scatter_plot(summary, states, clip_res=(-8,8))
+        fig.suptitle("Correlation plots {}".format(name))
+        fig.tight_layout()
+        pdfreport.savefig(fig)
+    
+#########################
+# Single particle plots #
+#########################
 else:
-    fig, ax = analysis.single_particle_momentumplot(summary_gsf, trackstates_gsf, "fwd", "bwd")
+    fig, ax = analysis.single_particle_momentumplot(summary_gsf, states_gsf, "fwd", "bwd")
     ax.set_title("GSF single particle")
     fig.tight_layout()
     pdfreport.savefig(fig)
 
-    fig, ax = analysis.single_particle_momentumplot(summary_kf, trackstates_kf, "prt", "flt")
+    fig, ax = analysis.single_particle_momentumplot(summary_kf, states_kf, "prt", "flt")
     ax.set_title("KF single particle")
     fig.tight_layout()
     pdfreport.savefig(fig)
 
-if args["no_plt_show"]:
-    exit(0)
-
 pdfreport.close()
-plt.show()
+
+if args["plt_show"]:
+    plt.show()
+

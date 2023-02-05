@@ -1,19 +1,11 @@
 import argparse
+from pathlib import Path
 
 import numpy as np
 import uproot
 import matplotlib.pyplot as plt
+import awkward as ak
 from matplotlib.ticker import MaxNLocator
-
-class SimpleTrackstatesGetter:
-    def __init__(self, trackstates):
-        self.trackstates = trackstates
-
-    def get(self, keys):
-        return [ self.trackstates[key].array(library="np") for key in keys ]
-
-    def loop(self, keys):
-        return zip(*self.get(keys))
 
 def make_x_value(tx, ty, tz, main_direction):
     if main_direction == 'x':
@@ -27,16 +19,41 @@ def make_x_value(tx, ty, tz, main_direction):
     else:
         raise "error"
 
+def correlation_plot(df, fig_ax=None, absolute=True):
+    if fig_ax:
+        fig, ax = fig_ax
+    else:
+        fig, ax = plt.subplots()
+        
+    corrcoefs = np.corrcoef(df.astype(float).to_numpy().T)
+    if absolute:
+        corrcoefs = abs(corrcoefs)
+        
+    mask = np.logical_not(np.tri(corrcoefs.shape[0], k=0))
+    corrcoefs = np.ma.array(corrcoefs, mask=mask)
+    
+    im = ax.imshow(corrcoefs, origin="lower", aspect=0.3, vmin=0 if absolute else -1, vmax=1)
+    fig.colorbar(im, ax=ax, label='Correlation coefficient')
 
-def ratio_hist(ax, tree, bins, label, mask):
-    p_true = np.concatenate(tree['t_p'].array(library="np"))
-    p_pred = abs(1. / np.concatenate(tree['eQOP_fit'].array(library="np")))
+    keys = df.columns.tolist()
+    ticks = np.arange(len(keys))
     
-    if mask is not None:
-        p_true = p_true[mask]
-        p_pred = p_pred[mask]
+    ax.xaxis.tick_top()
     
-    clipped_ratio = np.clip(p_pred / p_true, 0, 2)
+    ax.set_xticks(ticks, keys, rotation=-45, ha='right')
+    ax.set_yticks(ticks, keys)    
+    
+    ax.set_xticks(ticks-0.5, minor=True)
+    ax.set_yticks(ticks-0.5, minor=True)
+    
+    ax.set_aspect(0.7)
+        
+    ax.grid(which='minor', color='black', linestyle='-', linewidth=1)
+    
+    return fig, ax
+
+def ratio_hist(ax, df, bins, label, clip = (0,2)):    
+    clipped_ratio = np.clip(df["p_fit"] / df["t_p"], *clip)
 
     # find mode
     np_n, np_bins = np.histogram(clipped_ratio, bins=bins)
@@ -44,26 +61,14 @@ def ratio_hist(ax, tree, bins, label, mask):
     mode = 0.5*(np_bins[max_idx] + np_bins[max_idx+1])
 
     # draw hist
-    n, bins, _ = ax.hist(clipped_ratio, bins=bins, label="{} (mean={:.3f}, mode={:.3f})".format(label, np.mean(clipped_ratio), mode), alpha=0.5)
+    n, bins, _ = ax.hist(clipped_ratio, bins=bins, alpha=0.5,
+                         label="{} (mean={:.3f}, mode={:.3f})".format(label, np.mean(clipped_ratio), mode))
 
     mids = 0.5*(bins[1:] + bins[:-1])
     mean = np.average(mids, weights=n)
     std = np.average((mids - mean)**2, weights=n)
 
-    print("\tHist {}: {:.3f} +- {:.9f}".format(label, mean, std))
-
-    return bins
-
-def residual_hist(ax, tree, bins, label, mask):
-    qop_true = np.concatenate(tree['t_charge'].array(library="np")) / np.concatenate(tree['t_p'].array(library="np"))
-    qop_fit = np.concatenate(tree['eQOP_fit'].array(library="np"))
-
-    if mask is not None:
-        qop_true = qop_true[mask]
-        qop_fit = qop_fit[mask]
-
-    clipped_residual = np.clip(qop_fit - qop_true, -0.2, 0.2)
-    _, bins, _ = ax.hist(clipped_residual, bins=bins, alpha=0.5, label=label)
+    print("\tHist {}: {:.3f} +- {:.3f}".format(label, mean, std))
 
     return bins
 
@@ -71,30 +76,24 @@ def residual_hist(ax, tree, bins, label, mask):
 # p_fit / p_true ratio #
 ########################
 
-def make_ratio_plot(summary_gsf, summary_kf, log_scale=False, bins=200):
-    # this only passes for electrons where the energy loss is lower than 1 GeV
-    def make_energy_loss_mask(trackstates):
-        return np.array([ True if abs(abs(1/e[0])-abs(1/e[-1])) < 1 else False for e in trackstates["t_eQOP"].array(library="np")])
-
+def ratio_residual_plot(summary_gsf, summary_kf, log_scale=False, bins=200):
     fig, ax = plt.subplots(1,2)
 
-    gsf_energy_loss_mask = None #make_energy_loss_mask(trackstates_gsf)
-    kf_energy_loss_mask = None #make_energy_loss_mask(trackstates_kf)
-
-    print("Make ratio plots...")
-    b = ratio_hist(ax[0], summary_gsf, bins, "GSF", mask=gsf_energy_loss_mask)
-    ratio_hist(ax[0], summary_kf, b, "KF", mask=kf_energy_loss_mask)
+    # Ratio hist
+    b = ratio_hist(ax[0], summary_gsf, bins, "GSF")
+    ratio_hist(ax[0], summary_kf, b, "KF")
 
     ax[0].set_title("Ratio")
-    ax[0].set_xlabel("p_fit / p_true")
+    ax[0].set_xlabel("$p_{fit} / p_{true}$")
     ax[0].legend()
 
-    print("Make residual plots...")
-    b = residual_hist(ax[1], summary_gsf, bins, "GSF", mask=gsf_energy_loss_mask)
-    residual_hist(ax[1], summary_kf, b, "KF", mask=kf_energy_loss_mask)
+    # Residual hist
+    clip = (-3,3)
+    _, b, _ = ax[1].hist(np.clip(summary_gsf["res_p_fit"], *clip), bins=bins, alpha=0.5, label="GSF")
+    ax[1].hist(np.clip(summary_kf["res_p_fit"], *clip), bins=b, alpha=0.5, label="KF")
 
     ax[1].set_title("Residual")
-    ax[1].set_xlabel("Residual  q/p_fit - q/p_true")
+    ax[1].set_xlabel("Residual  $p_{fit}$ - $p_{true}$")
     ax[1].legend()
 
     if log_scale:
@@ -133,65 +132,64 @@ def plot_measurements_holes(trackstates):
 # Plots at track positions (e.g. beginning or end) #
 ####################################################
 
-def plot_at_track_position(pos, trackstates, fitter_name, main_direction, clip_ratio=(0,2), clip_abs=(0,20)):
-    a = SimpleTrackstatesGetter(trackstates)
-
-    end_energies_true = []
-    end_energies_flt = []
-    end_energies_prt = []
-    x_values = []
-
-    for tx, ty, tz, true_qop, flt_qop, prt_qop in a.loop(["t_x", "t_y", "t_z", "t_eQOP", "eQOP_flt", "eQOP_prt"]):
-        x_values.append(make_x_value(tx, ty, tz, main_direction)[pos])
-
-        end_energies_true.append(abs(1/true_qop[pos]))
-        end_energies_flt.append(abs(1/flt_qop[pos]))
-        end_energies_prt.append(abs(1/prt_qop[pos]))
-
+def plot_at_track_position(trk_idx, trackstates, fitter_name, main_direction, clip_ratio=(0,2), clip_abs=(0,20), bins = 200):
+    aggregation = trackstates.groupby(["event_nr", "multiTraj_nr"]).agg({
+        "t_x": lambda s: s.iloc[trk_idx],
+        "t_y": lambda s: s.iloc[trk_idx],
+        "t_z": lambda s: s.iloc[trk_idx],
+        "t_eQOP": lambda s: s.iloc[trk_idx],
+        "eQOP_flt": lambda s: s.iloc[trk_idx],
+        "eQOP_smt": lambda s: s.iloc[trk_idx],
+    })
+    
+    aggregation["t_p"] = abs(1./aggregation["t_eQOP"])
+    aggregation["p_smt"] = abs(1./aggregation["eQOP_smt"])
+    aggregation["p_flt"] = abs(1./aggregation["eQOP_flt"])
+    
     if clip_abs:
-        end_energies_prt = np.clip(end_energies_prt, clip_abs[0], clip_abs[1])
-        end_energies_flt = np.clip(end_energies_flt, clip_abs[0], clip_abs[1])
-        
-    # print("\tprt (fwd): ",np.mean(end_energies_prt), np.std(end_energies_prt))
-    # print("\tflt (bwd): ",np.mean(end_energies_flt), np.std(end_energies_flt))
-    # print("\ttrue:",np.mean(end_energies_true), np.std(end_energies_true))
+        aggregation["p_smt"] = np.clip(aggregation["p_smt"], clip_abs[0], clip_abs[1])
+        aggregation["p_flt"] = np.clip(aggregation["p_flt"], clip_abs[0], clip_abs[1])
     
-    fig, ax = plt.subplots(2,3, figsize=(14,5))
-    fig.suptitle("At track position '{}'".format(pos))
-    
-    bins = 200
+    fig, ax = plt.subplots(2,3)
+    fig.suptitle("At track position '{}'".format(trk_idx))
 
-    _, bins, _ = ax[0,0].hist(end_energies_prt, bins=bins, alpha=0.5, label="{} prt".format(fitter_name))
-    _ = ax[0,0].hist(end_energies_true, bins=bins, alpha=0.5,label="true")
-    ax[0,0].set_title("prt energy")
+    _, b, _ = ax[0,0].hist(aggregation["p_flt"], bins=bins, alpha=0.5, label="{} prt".format(fitter_name))
+    _ = ax[0,0].hist(aggregation["t_p"], bins=b, alpha=0.5,label="true")
+    ax[0,0].set_title("filtered & true")
     ax[0,0].set_yscale('log')
     ax[0,0].legend()
     
-    _, bins, _ = ax[1,0].hist(end_energies_flt, bins=bins, alpha=0.5, label="{} flt".format(fitter_name))
-    _ = ax[1,0].hist(end_energies_true, bins=bins, alpha=0.5,label="true")
-    ax[1,0].set_title("flt energy")
+    _, b, _ = ax[1,0].hist(aggregation["p_smt"], bins=bins, alpha=0.5, label="{} flt".format(fitter_name))
+    _ = ax[1,0].hist(aggregation["t_p"], bins=b, alpha=0.5,label="true")
+    ax[1,0].set_title("smoothed & true")
     ax[1,0].set_yscale('log')
     ax[1,0].legend()
     
-    bins = 200
-    ratio = np.array(end_energies_prt) / np.array(end_energies_true)
+    ratio = np.array(aggregation["p_flt"]) / np.array(aggregation["t_p"])
     if clip_ratio:
         ratio = np.clip(ratio, clip_ratio[0], clip_ratio[1])
     _ = ax[0,1].hist(ratio, bins=bins)
-    ax[0,1].set_title("prt / true")
+    ax[0,1].set_title("ratio flt / true")
     
-    ratio = np.array(end_energies_flt) / np.array(end_energies_true)
+    ratio = np.array(aggregation["p_smt"]) / np.array(aggregation["t_p"])
     if clip_ratio:
         ratio = np.clip(ratio, clip_ratio[0], clip_ratio[1])
     _ = ax[1,1].hist(ratio, bins=bins)
-    ax[1,1].set_title("flt / true")
-
-    ax[0,2].hist(x_values)
-    ax[0,2].set_title("{} position at pos {}".format(main_direction, pos))
+    ax[1,1].set_title("ration smt / true")
+    
+    get_pos = {
+        "x": lambda df: df["t_x"],
+        "y": lambda df: df["t_y"],
+        "z": lambda df: df["t_z"],
+        "r": lambda df: np.hypot(df["t_x"], df["t_y"]),
+    }
+    
+    all_pos = get_pos[main_direction](trackstates)
+    
+    ax[0,2].hist(get_pos[main_direction](aggregation), range=(min(all_pos), max(all_pos)))
+    ax[0,2].set_title("{}-position at track index {}".format(main_direction, trk_idx))
 
     ax.flat[-1].set_visible(False)
-    
-    fig.tight_layout()
     return fig, ax
     
 
@@ -234,36 +232,16 @@ def performance_at_trackstates(trackstates, main_direction, clip=(0,8), log_scal
 # Correlation matrix #
 ######################
 
-def correlation_plots(tracksummary, trackstates, clip_res):
-    def get(key):
-        if key == 'p_fit':
-            return abs(1./get('eQOP_fit'))
-        if key == "res_p_fit":
-            return abs(1./get('eQOP_fit')) - get('t_p')
-        if key == "true_p_delta":
-            teqop = trackstates['t_eQOP'].array(library="np")
-            return np.array([ 1./abs(a[0]) - 1./abs(a[-1]) for a in teqop ])
-        else:
-            return np.concatenate(tracksummary[key].array(library="np"))
-
+def correlation_scatter_plot(summary, states, clip_res, do_printout=False):
     fig, ax = plt.subplots(2,1)
-    #keys = ['p_fit', 't_pT', 't_eta', 't_phi', "chi2Sum", "nMeasurements", "nHoles", "nStates"]
-    keys = ["chi2Sum", 't_theta', 't_phi', 't_p', 'res_p_fit', 'true_p_delta']
+    
+    keys = ["chi2Sum", 't_theta', 't_phi', 't_p', 'res_p_fit', 't_delta_p']
+    correlation_plot(summary[keys], (fig, ax[0]))
 
-    data = np.vstack([ get(k) for k in keys ])
+    event = states["event_nr"].to_numpy()
+    traj = states["multiTraj_nr"].to_numpy()
 
-    event = trackstates["event_nr"].array(library="np")
-    traj = trackstates["multiTraj_nr"].array(library="np")
-
-    im = ax[0].imshow(np.corrcoef(data), origin="lower", aspect=0.3)
-    fig.colorbar(im, ax=ax[0], label='Interactive colorbar')
-
-    ax[0].set_xticks(np.arange(len(keys)))
-    ax[0].set_yticks(np.arange(len(keys)))
-
-    ax[0].set_xticklabels(keys)
-    ax[0].set_yticklabels(keys)
-
+    data = summary[keys].to_numpy().T
     k_res_p_fit = 4
     k_true_p_delta = 5
 
@@ -283,9 +261,10 @@ def correlation_plots(tracksummary, trackstates, clip_res):
     idxs_decrease = np.nonzero(np.logical_and(data[k_res_p_fit] < -0.5, data[k_true_p_delta] >= -0.5))[0]
     idxs_loss = np.nonzero(np.logical_and(data[k_res_p_fit] < -0.5, data[k_true_p_delta] < -0.5))[0]
 
-    print_idx_tuples("Energy decrease without loss",idxs_decrease)
-    print_idx_tuples("Energy increase",idxs_increase)
-    print_idx_tuples("Wrong energy loss", idxs_loss)
+    if do_printout:
+        print_idx_tuples("Energy decrease without loss",idxs_decrease)
+        print_idx_tuples("Energy increase",idxs_increase)
+        print_idx_tuples("Wrong energy loss", idxs_loss)
 
     return fig, ax
 
@@ -314,34 +293,84 @@ def single_particle_momentumplot(tracksummary, trackstates, label_predicted, lab
 
     return fig, ax
 
-# def single_particle_path(trackstates)
+
+
+
+def uproot_to_pandas(summary, states):
+    exclude_keys = ['measurementChi2', 'outlierChi2', 'measurementVolume', 'measurementLayer', 'outlierVolume']
+    summary_keys = [ k for k in summary.keys() if not k in exclude_keys ]
+    
+    summary_df = summary.arrays(library="pd").reset_index()
+    
+    summary_df = ak.to_dataframe(summary.arrays(summary_keys), how='outer') \
+        .reset_index() \
+        .drop(["entry", "subTraj_nr", "subsubentry", "subentry"], axis=1) \
+        #.set_index(["event_nr", "multiTraj_nr"])
+    
+    states_df = ak.to_dataframe(states.arrays(), how='outer') \
+        .reset_index() \
+        .drop(["entry", "subTraj_nr"], axis=1) \
+        .rename({"subentry": "trackState_nr"}, axis=1) \
+        #.set_index(["event_nr","multiTraj_nr","trackState_nr"])
+            
+    summary_df["p_fit"] = abs(1./summary_df["eQOP_fit"])
+    summary_df["res_p_fit"] = summary_df["p_fit"] - summary_df["t_p"]
+    
+    def delta_p(df):
+        p = 1./abs(df["t_eQOP"].to_numpy())
+        return p[0] - p[-1]
+
+    summary_df["t_delta_p"] = states_df.groupby(["event_nr", "multiTraj_nr"]).apply(delta_p).to_numpy()
+    
+    return summary_df, states_df
+
 
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='GSF/KF Analysis script')
-    parser.add_argument('--main_direction', help="e.g. x for telescope and r for cylindrical", type=str, choices=['r', 'x', 'y', 'z'], default="truth")
-    parser.add_argument('--disable_meas_holes', help="do not do the measurements holes plot", default=False, action="store_true")
+    parser.add_argument('input_dir', help="where the root/ and csv/ dirs are")
+    parser.add_argument('--main_direction', 
+                        help="e.g. x for telescope and r for cylindrical", 
+                        type=str, choices=['r', 'x', 'y', 'z'], default="truth")
+    parser.add_argument('--disable_meas_holes', help="do not do the measurements holes plot", 
+                        default=False, action="store_true")
+    
     args = vars(parser.parse_args())
+    
+    path = Path(args["input_dir"])
+    assert path.exists() and (path / "root").exists()
 
-    summary_gsf = uproot.open("root/tracksummary_gsf.root:tracksummary")
-    summary_kf = uproot.open("root/tracksummary_kf.root:tracksummary")
-    trackstates_gsf = uproot.open("root/trackstates_gsf.root:trackstates")
-    trackstates_kf = uproot.open("root/trackstates_kf.root:trackstates")
+    summary_gsf, trackstates_gsf = uproot_to_pandas(
+        uproot.open(str(path / "root/tracksummary_gsf.root:tracksummary")),
+        uproot.open(str(path / "root/trackstates_gsf.root:trackstates"))
+    )
+    
+    summary_kf, trackstates_kf = uproot_to_pandas(
+        uproot.open(str(path / "root/tracksummary_kf.root:tracksummary")),
+        uproot.open(str(path / "root/trackstates_kf.root:trackstates"))
+    )
 
-    make_ratio_plot(summary_gsf, summary_kf)
-    fig, ax = correlation_plots(summary_gsf, trackstates_gsf, clip_res=(-4,4))
+    fig, ax = ratio_residual_plot(summary_gsf, summary_kf)
+    fig.suptitle("Ratio/Res")
+    fig.tight_layout()
+    
+    fig, ax = correlation_scatter_plot(summary_gsf, trackstates_gsf, clip_res=(-4,4))
     fig.suptitle("GSF correlation")
+    fig.tight_layout()
 
-    fig, ax = correlation_plots(summary_kf, trackstates_kf, clip_res=(-4,4))
+    fig, ax = correlation_scatter_plot(summary_kf, trackstates_kf, clip_res=(-4,4))
     fig.suptitle("KF correlation")
+    fig.tight_layout()
 
     if not args["disable_meas_holes"]:
         print("Make plots at last surface...")
-        fig, ax = plot_at_track_position(0, trackstates_gsf, "GSF", args["main_direction"])
-        fig.suptitle("At the last measurement surface")
-
+        fig, ax = plot_at_track_position(0, trackstates_gsf, "GSF", args["main_direction"], bins=50)
+        fig.suptitle("GSF - last measurement surface")
+        fig.tight_layout()
+    
         print("Make plots at first surface...")
-        fig, ax = plot_at_track_position(-1, trackstates_gsf, "KF", args["main_direction"])
-        fig.suptitle("At the first measurement surface")
+        fig, ax = plot_at_track_position(-1, trackstates_gsf, "GSF", args["main_direction"], bins=50)
+        fig.suptitle("GSF - first measurement surface")
+        fig.tight_layout()
 
     plt.show()
