@@ -208,11 +208,11 @@ addParticleSelection(
     s,
     ParticleSelectorConfig(
         removeNeutral=True,
-        removeEarlyEnergyLoss=True,
-        removeEarlyEnergyLossThreshold=0.001
+        # removeEarlyEnergyLoss=True,
+        # removeEarlyEnergyLossThreshold=0.001
     ),
     inputParticles="particles_initial",
-    inputSimHits="simhits",
+    # inputSimHits="simhits",
     outputParticles="particles_initial_selected_post_sim",
     logLevel=defaultLogLevel,
 )
