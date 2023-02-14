@@ -252,7 +252,8 @@ s.addAlgorithm(
         inputSourceLinks="sourcelinks",
         inputProtoTracks="prototracks",
         inputInitialTrackParameters="estimatedparameters",
-        outputTrajectories="trajectories",
+        outputTrajectories="kf_trajectories",
+        outputTracks="kf_tracks",
         directNavigation=False,
         pickTrack=args["pick"],
         trackingGeometry=trackingGeometry,
@@ -288,6 +289,7 @@ s.addAlgorithm(
         inputProtoTracks="prototracks",
         inputInitialTrackParameters="estimatedparameters",
         outputTrajectories="gsf_trajectories",
+        outputTracks="gsf_tracks",
         directNavigation=False,
         pickTrack=args["pick"],
         trackingGeometry=trackingGeometry,
@@ -297,10 +299,10 @@ s.addAlgorithm(
     )
 )
 
-for trajectories, postfix in zip(("gsf_trajectories", "trajectories"), ("gsf", "kf")):
+for trajectories, postfix in zip(("gsf_trajectories", "kf_trajectories"), ("gsf", "kf")):
     s.addWriter(
         acts.examples.RootTrajectorySummaryWriter(
-            level=acts.logging.ERROR,
+            level=acts.logging.WARNING,
             inputTrajectories=trajectories,
             inputParticles="truth_seeds_selected",
             inputMeasurementParticlesMap="measurement_particles_map",
@@ -310,7 +312,7 @@ for trajectories, postfix in zip(("gsf_trajectories", "trajectories"), ("gsf", "
 
     s.addWriter(
         acts.examples.RootTrajectoryStatesWriter(
-            level=acts.logging.ERROR,
+            level=acts.logging.WARNING,
             inputTrajectories=trajectories,
             inputParticles="truth_seeds_selected",
             inputSimHits="simhits",
@@ -360,6 +362,10 @@ summary_kf, states_kf = analysis.uproot_to_pandas(
 
 pdfreport = PdfPages(outputDir/'report.pdf')
 
+bad = summary_gsf[ ~summary_gsf["res_eLOC0_fit"].between(-100,100) | ~summary_gsf["res_eLOC1_fit"].between(-100,100) ]
+keys = ["event_nr", "multiTraj_nr", "nStates", "nMeasurements", "nOutliers",'res_eLOC0_fit', 'res_eLOC1_fit', 'res_ePHI_fit', 'res_eTHETA_fit', 'res_eQOP_fit', 'res_eT_fit']
+print(bad[keys])
+
 ####################
 # Collective plots #
 ####################
@@ -379,6 +385,11 @@ if args["pick"] == -1:
     #analysis.performance_at_trackstates(trackstates_gsf, 'x')
     
     for summary, states, name in zip([summary_gsf, summary_kf], [states_gsf, states_kf], ["GSF", "KF"]):
+        fig, _ = analysis.make_full_residual_plot(summary)
+        fig.suptitle("{} residuals")
+        fig.tight_layout()
+        pdfreport.savefig(fig)
+        
         fig, _ = analysis.plot_at_track_position(-1, states, name, main_direction, clip_abs=(0,2*args["pmax"]))
         fig.suptitle("{} at first surface".format(name))
         fig.tight_layout()
@@ -398,15 +409,16 @@ if args["pick"] == -1:
 # Single particle plots #
 #########################
 else:
-    fig, ax = analysis.single_particle_momentumplot(summary_gsf, states_gsf, "fwd", "bwd")
-    ax.set_title("GSF single particle")
-    fig.tight_layout()
-    pdfreport.savefig(fig)
-
-    fig, ax = analysis.single_particle_momentumplot(summary_kf, states_kf, "prt", "flt")
-    ax.set_title("KF single particle")
-    fig.tight_layout()
-    pdfreport.savefig(fig)
+    pass
+    # fig, ax = analysis.single_particle_momentumplot(summary_gsf, states_gsf, "fwd", "bwd")
+    # ax.set_title("GSF single particle")
+    # fig.tight_layout()
+    # pdfreport.savefig(fig)
+    # 
+    # fig, ax = analysis.single_particle_momentumplot(summary_kf, states_kf, "prt", "flt")
+    # ax.set_title("KF single particle")
+    # fig.tight_layout()
+    # pdfreport.savefig(fig)
 
 pdfreport.close()
 

@@ -271,20 +271,21 @@ def correlation_scatter_plot(summary, states, clip_res, do_printout=False):
 def single_particle_momentumplot(tracksummary, trackstates, label_predicted, label_filtered):
     fig, ax = plt.subplots()
 
-    x = trackstates["pathLength"].array(library="np")
+    # ????????
+    x = trackstates["pathLength"].to_numpy()
     assert len(x) == 1
     x = x[0]
 
-    p_true_states = 1./abs(trackstates["t_eQOP"].array(library="np")[0])
-    p_prt_states = 1./abs(trackstates["eQOP_prt"].array(library="np")[0])
-    p_flt_states = 1./abs(trackstates["eQOP_flt"].array(library="np")[0])
+    p_true_states = 1./abs(trackstates["t_eQOP"][0])
+    p_prt_states = 1./abs(trackstates["eQOP_prt"][0])
+    p_flt_states = 1./abs(trackstates["eQOP_flt"][0])
 
     ax.plot(x, p_true_states, label="true p")
     ax.plot(x, p_prt_states,  label=label_predicted)
     ax.plot(x, p_flt_states,  label=label_filtered, ls="--")
 
-    p_true = float(tracksummary["t_p"].array(library="np")[0])
-    p_fit = 1./abs(float(tracksummary["eQOP_fit"].array(library="np")[0]))
+    p_true = float(tracksummary["t_p"][0])
+    p_fit = 1./abs(float(tracksummary["eQOP_fit"][0]))
 
     ax.scatter([0.], [p_true], label="true p (origin)")
     ax.scatter([0.], [p_fit], label="fitted p")
@@ -297,14 +298,12 @@ def single_particle_momentumplot(tracksummary, trackstates, label_predicted, lab
 
 
 def uproot_to_pandas(summary, states):
-    exclude_keys = ['measurementChi2', 'outlierChi2', 'measurementVolume', 'measurementLayer', 'outlierVolume']
+    exclude_keys = ['measurementChi2', 'outlierChi2', 'measurementVolume', 'measurementLayer', 'outlierVolume', 'outlierLayer']
     summary_keys = [ k for k in summary.keys() if not k in exclude_keys ]
-    
-    summary_df = summary.arrays(library="pd").reset_index()
     
     summary_df = ak.to_dataframe(summary.arrays(summary_keys), how='outer') \
         .reset_index() \
-        .drop(["entry", "subTraj_nr", "subsubentry", "subentry"], axis=1) \
+        .drop(["entry", "subTraj_nr", "subentry"], axis=1) \
         #.set_index(["event_nr", "multiTraj_nr"])
     
     states_df = ak.to_dataframe(states.arrays(), how='outer') \
@@ -323,6 +322,17 @@ def uproot_to_pandas(summary, states):
     summary_df["t_delta_p"] = states_df.groupby(["event_nr", "multiTraj_nr"]).apply(delta_p).to_numpy()
     
     return summary_df, states_df
+
+
+def make_full_residual_plot(df):
+    fig, axes = plt.subplots(2,3)
+
+    for ax, key in zip(axes.flatten(), ['res_eLOC0_fit', 'res_eLOC1_fit', 'res_ePHI_fit', 'res_eTHETA_fit', 'res_eQOP_fit', 'res_eT_fit']):
+        ax.hist(df[key], bins='rice')
+        ax.set_yscale('log')
+        ax.set_title(key[5:][:-4])
+        
+    return fig, axes
 
 
     
