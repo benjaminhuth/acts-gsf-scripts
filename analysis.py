@@ -297,7 +297,7 @@ def single_particle_momentumplot(tracksummary, trackstates, label_predicted, lab
 
 
 
-def uproot_to_pandas(summary, states):
+def uproot_to_pandas(summary, states=None):
     exclude_keys = ['measurementChi2', 'outlierChi2', 'measurementVolume', 'measurementLayer', 'outlierVolume', 'outlierLayer']
     summary_keys = [ k for k in summary.keys() if not k in exclude_keys ]
     
@@ -306,22 +306,25 @@ def uproot_to_pandas(summary, states):
         .drop(["entry", "subTraj_nr", "subentry"], axis=1) \
         #.set_index(["event_nr", "multiTraj_nr"])
     
-    states_df = ak.to_dataframe(states.arrays(), how='outer') \
-        .reset_index() \
-        .drop(["entry", "subTraj_nr"], axis=1) \
-        .rename({"subentry": "trackState_nr"}, axis=1) \
-        #.set_index(["event_nr","multiTraj_nr","trackState_nr"])
-            
-    summary_df["p_fit"] = abs(1./summary_df["eQOP_fit"])
-    summary_df["res_p_fit"] = summary_df["p_fit"] - summary_df["t_p"]
-    
-    def delta_p(df):
-        p = 1./abs(df["t_eQOP"].to_numpy())
-        return p[0] - p[-1]
+    if states is None:
+        return summary_df
+    else:
+        states_df = ak.to_dataframe(states.arrays(), how='outer') \
+            .reset_index() \
+            .drop(["entry", "subTraj_nr"], axis=1) \
+            .rename({"subentry": "trackState_nr"}, axis=1) \
+            #.set_index(["event_nr","multiTraj_nr","trackState_nr"])
 
-    summary_df["t_delta_p"] = states_df.groupby(["event_nr", "multiTraj_nr"]).apply(delta_p).to_numpy()
-    
-    return summary_df, states_df
+        summary_df["p_fit"] = abs(1./summary_df["eQOP_fit"])
+        summary_df["res_p_fit"] = summary_df["p_fit"] - summary_df["t_p"]
+
+        def delta_p(df):
+            p = 1./abs(df["t_eQOP"].to_numpy())
+            return p[0] - p[-1]
+
+        summary_df["t_delta_p"] = states_df.groupby(["event_nr", "multiTraj_nr"]).apply(delta_p).to_numpy()
+
+        return summary_df, states_df
 
 
 def make_full_residual_plot(df):
