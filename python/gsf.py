@@ -1,13 +1,22 @@
+#!/bin/python3
+
 from pathlib import Path
 from typing import Union, Optional
 import math
 import pprint
+import json
 import os
 from tempfile import NamedTemporaryFile
+import subprocess
 import textwrap
 import shutil
-
+import time
 import argparse
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+import uproot
 
 import acts
 import acts.examples
@@ -15,14 +24,15 @@ from acts.examples.simulation import *
 from acts.examples.reconstruction import *
 from acts.examples.geant4 import GdmlDetectorConstruction
 
-import numpy as np
-
 u = acts.UnitConstants
 
 #####################
 # Cmd line handling #
 #####################
 
+assert "ACTS_ROOT" in os.environ and Path(os.environ["ACTS_ROOT"]).exists()
+
+# fmt: off
 parser = argparse.ArgumentParser(description='Run GSF Telescope')
 parser.add_argument("detector", choices=["telescope", "odd", "sphenix"], help="which detector geometry to use")
 parser.add_argument('-p','--pick', help='pick track', type=int, default=-1)
@@ -42,7 +52,9 @@ parser.add_argument('--smearing', help='stddev for the pixel smearing', type=flo
 parser.add_argument('--plt_show', help='Call plt.show() in the end', action="store_true", default=False)
 parser.add_argument('--disable_fatras_interactions', help="no  interactions in FATRAS", default=False, action="store_true")
 parser.add_argument('-o', '--output', help="Override default output dir")
+parser.add_argument('--skip_analysis', default=False, action="store_true")
 args = vars(parser.parse_args())
+# fmt: on
 
 ##################
 # Build geometry #
@@ -54,21 +66,28 @@ if args["detector"] == "telescope":
     surface_width = 1000
 
     telescopeConfig = {
-        "positions": np.arange(0, args["surfaces"]*surface_distance, surface_distance).tolist(),
+        "positions": np.arange(
+            0, args["surfaces"] * surface_distance, surface_distance
+        ).tolist(),
         # "offsets": [0,0],
-        "bounds": [surface_width, surface_width], #[args["surfaces"]*10, args["surfaces"]*10],
+        "bounds": [
+            surface_width,
+            surface_width,
+        ],  # [args["surfaces"]*10, args["surfaces"]*10],
         "thickness": surface_thickness,
         "surfaceType": 0,
         "binValue": 0,
     }
 
-    detector, trackingGeometry, decorators = acts.examples.TelescopeDetector.create(
-        **telescopeConfig
-    )
-    
+    (
+        detector,
+        trackingGeometry,
+        decorators,
+    ) = acts.examples.TelescopeDetector.create(**telescopeConfig)
+
 elif args["detector"] == "odd":
     from acts.examples.odd import getOpenDataDetector
-    
+
     oddDir = Path(os.environ["ACTS_ROOT"]) / "thirdparty/OpenDataDetector"
 
     oddMaterialMap = oddDir / "data/odd-material-maps.root"
@@ -79,7 +98,7 @@ elif args["detector"] == "odd":
     detector, trackingGeometry, decorators = getOpenDataDetector(
         oddDir, mdecorator=oddMaterialDeco
     )
-    
+
 elif args["detector"] == "sphenix":
     raise "Not yet supported"
 
@@ -91,7 +110,7 @@ if args["output"] is not None:
     outputDir = Path(args["output"])
 else:
     outputDir = Path.cwd() / "output_{}".format(args["detector"])
-    
+
 (outputDir / "root").mkdir(parents=True, exist_ok=True)
 (outputDir / "csv").mkdir(exist_ok=True, parents=True)
 
@@ -125,14 +144,18 @@ s.addWriter(
 realistic_stddev = acts.Vector4(0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns)
 addParticleGun(
     s,
-    MomentumConfig(args['pmin'] * u.GeV, args['pmax'] * u.GeV, transverse=False),
+    MomentumConfig(args["pmin"] * u.GeV, args["pmax"] * u.GeV, transverse=False),
     EtaConfig(-0.01, 0.01) if args["detector"] == "telescope" else EtaConfig(-3, 3),
-    PhiConfig(-0.01, 0.01) if args["detector"] == "telescope" else PhiConfig(0, 2*np.pi),
+    PhiConfig(-0.01, 0.01)
+    if args["detector"] == "telescope"
+    else PhiConfig(0, 2 * np.pi),
     ParticleConfig(1, acts.PdgParticle.eElectron, randomizeCharge=False),
     rnd=rnd,
     vtxGen=acts.examples.GaussianVertexGenerator(
         mean=acts.Vector4(0, 0, 0, 0),
-        stddev=acts.Vector4(0, 0, 0, 0), # if args["detector"] == "telescope" else realistic_stddev,
+        stddev=acts.Vector4(
+            0, 0, 0, 0
+        ),  # if args["detector"] == "telescope" else realistic_stddev,
     ),
     multiplicity=1000,
     logLevel=defaultLogLevel,
@@ -158,14 +181,14 @@ else:
         logLevel=defaultLogLevel,
         enableInteractions=not args["disable_fatras_interactions"],
     )
-    
+
 digitization_args = {
     "s": s,
     "trackingGeometry": trackingGeometry,
     "field": field,
     # outputDirRoot=outputDir,
     "rnd": rnd,
-    "outputDirCsv": None, #"csv"
+    "outputDirCsv": None,  # "csv"
     "logLevel": defaultLogLevel,
 }
 
@@ -188,7 +211,9 @@ if args["detector"] == "telescope":
                         }}
                     }}
                 ]
-            }}""".format(args["smearing"], args["smearing"])
+            }}""".format(
+            args["smearing"], args["smearing"]
+        )
         content = textwrap.dedent(content)
         fp.write(str.encode(content))
         fp.flush()
@@ -202,7 +227,7 @@ else:
         **digitization_args,
         digiConfigFile=digiConfigFile,
     )
-    
+
 
 addParticleSelection(
     s,
@@ -225,8 +250,8 @@ addSeeding(
     # particleSmearingSigmas=10*[ args["particle_smearing"] ],
     seedingAlgorithm=SeedingAlgorithm.TruthSmeared,
     logLevel=defaultLogLevel,
-    truthSeedRanges=TruthSeedRanges(rho=(0.0, 1.0), nHits=(6,None)),
-    initialVarInflation=6*[100.0],
+    truthSeedRanges=TruthSeedRanges(rho=(0.0, 1.0), nHits=(6, None)),
+    initialVarInflation=6 * [100.0],
 )
 
 s.addAlgorithm(
@@ -243,6 +268,7 @@ kalmanOptions = {
     "energyLoss": True,
     "reverseFilteringMomThreshold": 0.0,
     "freeToBoundCorrection": acts.examples.FreeToBoundCorrection(False),
+    "level": acts.logging.INFO,
 }
 
 s.addAlgorithm(
@@ -252,8 +278,7 @@ s.addAlgorithm(
         inputSourceLinks="sourcelinks",
         inputProtoTracks="prototracks",
         inputInitialTrackParameters="estimatedparameters",
-        outputTrajectories="kf_trajectories",
-        outputTracks="kf_tracks",
+        outputTracks="tracks_kf",
         directNavigation=False,
         pickTrack=args["pick"],
         trackingGeometry=trackingGeometry,
@@ -275,8 +300,10 @@ gsfOptions = {
         high_bhapprox,
     ),
     "finalReductionMethod": acts.examples.FinalReductionMethod.maxWeight,
-    "weightCutoff": 1.e-4,
-    "level": acts.logging.VERBOSE if args["pick"] != -1 or args["verbose"] else acts.logging.ERROR,
+    "weightCutoff": 1.0e-4,
+    "level": acts.logging.VERBOSE
+    if args["pick"] != -1 or args["verbose"]
+    else acts.logging.ERROR,
     # "minimalMomentumThreshold": 0.,
 }
 pprint.pprint(gsfOptions)
@@ -288,25 +315,33 @@ s.addAlgorithm(
         inputSourceLinks="sourcelinks",
         inputProtoTracks="prototracks",
         inputInitialTrackParameters="estimatedparameters",
-        outputTrajectories="gsf_trajectories",
-        outputTracks="gsf_tracks",
+        outputTracks="tracks_gsf",
         directNavigation=False,
         pickTrack=args["pick"],
         trackingGeometry=trackingGeometry,
-        fit=acts.examples.makeGsfFitterFunction(
-            trackingGeometry, field, **gsfOptions
-        ),
+        fit=acts.examples.makeGsfFitterFunction(trackingGeometry, field, **gsfOptions),
     )
 )
 
-for trajectories, postfix in zip(("gsf_trajectories", "kf_trajectories"), ("gsf", "kf")):
+for fitter in ("gsf", "kf"):
+    trajectories = "trajectories_" + fitter
+    tracks = "tracks_" + fitter
+
+    s.addAlgorithm(
+        acts.examples.TracksToTrajectories(
+            level=acts.logging.WARNING,
+            inputTracks=tracks,
+            outputTrajectories=trajectories,
+        )
+    )
+
     s.addWriter(
         acts.examples.RootTrajectorySummaryWriter(
             level=acts.logging.WARNING,
             inputTrajectories=trajectories,
             inputParticles="truth_seeds_selected",
             inputMeasurementParticlesMap="measurement_particles_map",
-            filePath=str(outputDir / "root/tracksummary_{}.root".format(postfix)),
+            filePath=str(outputDir / "root/tracksummary_{}.root".format(fitter)),
         )
     )
 
@@ -318,7 +353,7 @@ for trajectories, postfix in zip(("gsf_trajectories", "kf_trajectories"), ("gsf"
             inputSimHits="simhits",
             inputMeasurementParticlesMap="measurement_particles_map",
             inputMeasurementSimHitsMap="measurement_simhits_map",
-            filePath=str(outputDir / "root/trackstates_{}.root".format(postfix)),
+            filePath=str(outputDir / "root/trackstates_{}.root".format(fitter)),
         )
     )
 
@@ -328,9 +363,15 @@ del s
 # Bring geometry file to top for convenience
 shutil.copyfile(outputDir / "csv/detectors.csv", Path.cwd() / "detectors.csv")
 
+result = subprocess.run(
+    ["git", "rev-parse", "--short", "HEAD"],
+    capture_output=True,
+    cwd=os.environ["ACTS_ROOT"],
+)
+actsCommitHash = result.stdout.decode("utf-8").rstrip()
+
 # Save configuration
-import json
-with open(outputDir/"config.json", "w") as f:
+with open(outputDir / "config.json", "w") as f:
     gsfConfig = gsfOptions.copy()
 
     del gsfConfig["betheHeitlerApprox"]
@@ -341,87 +382,24 @@ with open(outputDir/"config.json", "w") as f:
 
     config = args.copy()
     config["gsf"] = gsfConfig
+    config["acts-commit-hash"] = actsCommitHash
     json.dump(config, f, indent=4)
 
-# Analysis
-import analysis
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
-import uproot
-import time
+if args["skip_analysis"]:
+    exit()
 
-summary_gsf, states_gsf = analysis.uproot_to_pandas(
-    uproot.open(str(outputDir / "root/tracksummary_gsf.root:tracksummary")),
-    uproot.open(str(outputDir / "root/trackstates_gsf.root:trackstates"))
-)
+############
+# Analysis #
+############
 
-summary_kf, states_kf = analysis.uproot_to_pandas(
-    uproot.open(str(outputDir / "root/tracksummary_kf.root:tracksummary")),
-    uproot.open(str(outputDir / "root/trackstates_kf.root:trackstates"))
-)
+from default_analysis import default_analysis
 
-pdfreport = PdfPages(outputDir/'report.pdf')
+pdfreport = PdfPages(outputDir / "report.pdf")
+main_direction = "x" if args["detector"] == "telescope" else "r"
 
-bad = summary_gsf[ ~summary_gsf["res_eLOC0_fit"].between(-100,100) | ~summary_gsf["res_eLOC1_fit"].between(-100,100) ]
-keys = ["event_nr", "multiTraj_nr", "nStates", "nMeasurements", "nOutliers",'res_eLOC0_fit', 'res_eLOC1_fit', 'res_ePHI_fit', 'res_eTHETA_fit', 'res_eQOP_fit', 'res_eT_fit']
-print(bad[keys])
-
-####################
-# Collective plots #
-####################
-if args["pick"] == -1:
-    fig, _ = analysis.ratio_residual_plot(summary_gsf, summary_kf, log_scale=True, bins=50)
-    fig.suptitle("Ratio/Res plot (log)")
-    fig.tight_layout()
-    pdfreport.savefig(fig)
-
-    fig, _ = analysis.ratio_residual_plot(summary_gsf, summary_kf, log_scale=False)
-    fig.suptitle("Ratio/Res plot")
-    fig.tight_layout()
-    pdfreport.savefig(fig)
-    
-    main_direction = "x" if args["detector"] == "telescope" else "r"
-
-    #analysis.performance_at_trackstates(trackstates_gsf, 'x')
-    
-    for summary, states, name in zip([summary_gsf, summary_kf], [states_gsf, states_kf], ["GSF", "KF"]):
-        fig, _ = analysis.make_full_residual_plot(summary)
-        fig.suptitle("{} residuals")
-        fig.tight_layout()
-        pdfreport.savefig(fig)
-        
-        fig, _ = analysis.plot_at_track_position(-1, states, name, main_direction, clip_abs=(0,2*args["pmax"]))
-        fig.suptitle("{} at first surface".format(name))
-        fig.tight_layout()
-        pdfreport.savefig(fig)
-        
-        fig, _ = analysis.plot_at_track_position(0, states, name, main_direction, clip_abs=(0,2*args["pmax"]))
-        fig.suptitle("{} at last surface".format(name))
-        fig.tight_layout()
-        pdfreport.savefig(fig)
-
-        fig, ax = analysis.correlation_scatter_plot(summary, states, clip_res=(-8,8))
-        fig.suptitle("Correlation plots {}".format(name))
-        fig.tight_layout()
-        pdfreport.savefig(fig)
-    
-#########################
-# Single particle plots #
-#########################
-else:
-    pass
-    # fig, ax = analysis.single_particle_momentumplot(summary_gsf, states_gsf, "fwd", "bwd")
-    # ax.set_title("GSF single particle")
-    # fig.tight_layout()
-    # pdfreport.savefig(fig)
-    # 
-    # fig, ax = analysis.single_particle_momentumplot(summary_kf, states_kf, "prt", "flt")
-    # ax.set_title("KF single particle")
-    # fig.tight_layout()
-    # pdfreport.savefig(fig)
+default_analysis(outputDir, main_direction, pmax=args["pmax"], pick_track=args["pick"], pdfreport=pdfreport)
 
 pdfreport.close()
 
 if args["plt_show"]:
     plt.show()
-

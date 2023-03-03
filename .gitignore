@@ -1,7 +1,8 @@
 tmp
 root
 csv
-output_*
+
+output*
 gdml
 timing.tsv
 __pycache__
