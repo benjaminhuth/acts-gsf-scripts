@@ -47,10 +47,12 @@ def default_analysis(
     #     "res_eT_fit",
     # ]
     # print(bad[keys])
-    
-    print("Bad tracks (res_l0, res_l1 > 100): {:.2%}".format(len(bad)/len(summary_gsf)))
-    
-    nTracksWithOutliers = len(summary_gsf[ summary_gsf["nOutliers"] > 0 ])
+
+    print(
+        "Bad tracks (res_l0, res_l1 > 100): {:.2%}".format(len(bad) / len(summary_gsf))
+    )
+
+    nTracksWithOutliers = len(summary_gsf[summary_gsf["nOutliers"] > 0])
     print("Tracks with outliers: {:.2%}".format(nTracksWithOutliers / len(summary_gsf)))
 
     ####################
@@ -66,7 +68,7 @@ def default_analysis(
         fig.suptitle("Ratio/Res plot")
         fig.tight_layout()
         save_to_pdfreport(fig)
-        
+
         fig, _ = make_full_residual_plot([summary_gsf, summary_kf], ["GSF", "KF"])
         fig.suptitle("{} residuals")
         fig.tight_layout()

@@ -64,3 +64,18 @@ def uproot_to_pandas(summary, states=None):
             return summary_df, states_df, components_df
         else:
             return summary_df, states_df
+
+
+def remove_outliers_and_unify_index(summary1, summary2):
+    summary1no = summary1[summary1["nOutliers"] == 0]
+    summary2no = summary2[summary2["nOutliers"] == 0]
+
+    summary1no = summary1no.set_index(["event_nr", "multiTraj_nr"])
+    summary2no = summary2no.set_index(["event_nr", "multiTraj_nr"])
+    common_idx = summary1no.index.intersection(summary2no.index)
+    summary1no = summary1no.loc[common_idx, :].reset_index()
+    summary2no = summary2no.loc[common_idx, :].reset_index()
+
+    assert len(summary1no) == len(summary2no)
+
+    return summary1no, summary2no

@@ -397,7 +397,13 @@ from default_analysis import default_analysis
 pdfreport = PdfPages(outputDir / "report.pdf")
 main_direction = "x" if args["detector"] == "telescope" else "r"
 
-default_analysis(outputDir, main_direction, pmax=args["pmax"], pick_track=args["pick"], pdfreport=pdfreport)
+default_analysis(
+    outputDir,
+    main_direction,
+    pmax=args["pmax"],
+    pick_track=args["pick"],
+    pdfreport=pdfreport,
+)
 
 pdfreport.close()
 
