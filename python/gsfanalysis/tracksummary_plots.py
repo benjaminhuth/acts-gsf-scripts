@@ -164,22 +164,25 @@ def correlation_scatter_plot(summary, clip_res, do_printout=False):
     return fig, ax
 
 
-def make_full_residual_plot(df):
-    fig, axes = plt.subplots(2, 3)
+def make_full_residual_plot(dfs, labels):
+    assert len(dfs) == len(labels)
+    fig, axes = plt.subplots(2,3,figsize=(18,5))
 
-    for ax, key in zip(
-        axes.flatten(),
-        [
-            "res_eLOC0_fit",
-            "res_eLOC1_fit",
-            "res_ePHI_fit",
-            "res_eTHETA_fit",
-            "res_eQOP_fit",
-            "res_eT_fit",
-        ],
-    ):
-        ax.hist(df[key], bins="rice")
-        ax.set_yscale("log")
-        ax.set_title(key[5:][:-4])
+    res_keys = ['res_eLOC0_fit', 'res_eLOC1_fit', 'res_ePHI_fit', 'res_eTHETA_fit', 'res_eQOP_fit', 'res_eT_fit']
+    coor_names = ["d_0", "z", "\phi", "\\theta", "q/p", 't']
+    units = ["mm", "mm", "rad", "rad", "1/GeV", "ns"]
+    
+    for ax, key, name, unit in zip(axes.flatten(), res_keys, coor_names, units):
+        _, bins = np.histogram(np.concatenate([df[key] for df in dfs]), bins="rice")
+        
+        hist_opts = dict(alpha = 0.5, histtype='stepfilled', linewidth=1.2, edgecolor='black')
+        
+        for df, fitter in zip(dfs, labels):
+            ax.hist(df[key], bins=bins, **hist_opts, label=fitter)
+        
+        ax.set_yscale('log')
+        ax.set_title("${}$".format(name))
+        ax.set_xlabel("${{{}}}_{{fit}} - {{{}}}_{{true}} \quad [{}]$".format(name, name, unit))
 
+    axes[0,0].legend()
     return fig, axes
