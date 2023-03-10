@@ -3,6 +3,8 @@ root
 csv
 
 output*
+test*
+
 gdml
 timing.tsv
 __pycache__

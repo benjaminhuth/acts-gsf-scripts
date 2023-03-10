@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from gsfanalysis.pandas_import import *
 from gsfanalysis.trackstates_plots import *
 from gsfanalysis.tracksummary_plots import *
+from gsfanalysis.core_tail_utils import rms
 
 
 def default_analysis(
@@ -28,32 +29,7 @@ def default_analysis(
         uproot.open(str(outputDir / "root/trackstates_kf.root:trackstates")),
     )
 
-    bad = summary_gsf[
-        ~summary_gsf["res_eLOC0_fit"].between(-100, 100)
-        | ~summary_gsf["res_eLOC1_fit"].between(-100, 100)
-    ]
-
-    # keys = [
-    #     "event_nr",
-    #     "multiTraj_nr",
-    #     "nStates",
-    #     "nMeasurements",
-    #     "nOutliers",
-    #     "res_eLOC0_fit",
-    #     "res_eLOC1_fit",
-    #     "res_ePHI_fit",
-    #     "res_eTHETA_fit",
-    #     "res_eQOP_fit",
-    #     "res_eT_fit",
-    # ]
-    # print(bad[keys])
-
-    print(
-        "Bad tracks (res_l0, res_l1 > 100): {:.2%}".format(len(bad) / len(summary_gsf))
-    )
-
-    nTracksWithOutliers = len(summary_gsf[summary_gsf["nOutliers"] > 0])
-    print("Tracks with outliers: {:.2%}".format(nTracksWithOutliers / len(summary_gsf)))
+    print_basic_statistics(summary_gsf, summary_kf)
 
     ####################
     # Collective plots #

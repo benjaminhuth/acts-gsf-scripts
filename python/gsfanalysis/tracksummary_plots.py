@@ -1,5 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
+
+from .core_tail_utils import rms
 
 
 def correlation_plot(df, fig_ax=None, absolute=True):
@@ -64,7 +67,7 @@ def ratio_hist(ax, df, bins, label, clip=(0, 2)):
     mean = np.average(mids, weights=n)
     std = np.average((mids - mean) ** 2, weights=n)
 
-    print("\tHist {}: {:.3f} +- {:.3f}".format(label, mean, std))
+    # print("\tHist {}: {:.3f} +- {:.3f}".format(label, mean, std))
 
     return bins
 
@@ -197,3 +200,47 @@ def make_full_residual_plot(dfs, labels):
 
     axes[0, 0].legend()
     return fig, axes
+
+
+def print_basic_statistics(summary_gsf, summary_kf):
+    data = {}
+
+    def append_to_data(key, value):
+        if not key in data:
+            data[key] = []
+        data[key].append(value)
+
+    def make_summary_frame(df, index):
+        append_to_data("index", index)
+
+        # Bad tracks
+        bad = df[
+            ~df["res_eLOC0_fit"].between(-100, 100)
+            | ~df["res_eLOC1_fit"].between(-100, 100)
+        ]
+        append_to_data("bad loc", len(bad) / len(df) if len(df) > 0 else 0.0)
+
+        outliers = df[df["nOutliers"] > 0]
+        append_to_data("outlier ratio", len(outliers) / len(df) if len(df) > 0 else 0.0)
+
+        append_to_data("avg states", np.mean(df["nStates"]))
+        append_to_data("avg outliers", np.mean(df["nOutliers"]))
+        append_to_data("avg measuremnts", np.mean(df["nMeasurements"]))
+
+        res_qop = df["res_eQOP_fit"]
+        pull_qop = df["pull_eQOP_fit"]
+        append_to_data("res QOP mean", np.mean(res_qop))
+        append_to_data("res QOP rms", rms(res_qop))
+        append_to_data("pull QOP mean", np.mean(pull_qop))
+        append_to_data("pull QOP std", np.std(pull_qop))
+
+    gsf_no_outliers = summary_gsf[summary_gsf["nOutliers"] == 0]
+    kf_no_outliers = summary_kf[summary_kf["nOutliers"] == 0]
+
+    make_summary_frame(summary_gsf, "GSF (all)   ")
+    make_summary_frame(gsf_no_outliers, "GSF (no outliers)")
+    make_summary_frame(summary_kf, "KF (all)   ")
+    # make_summary_frame(kf_no_outliers, "KF (no outliers)")
+
+    with pd.option_context("display.float_format", "{:0.3f}".format):
+        print(pd.DataFrame(data).set_index("index").transpose())

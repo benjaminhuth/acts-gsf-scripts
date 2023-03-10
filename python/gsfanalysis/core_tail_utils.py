@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.stats import norm, skew
+import scipy.stats as sps
 
 
 def rms(x):
@@ -18,7 +18,7 @@ def add_core_to_df_quantile(df, key, quantile=0.95):
 
 
 def plot_core_tail_residuals(
-    df, key, parts=["core", "tail", "all"], coor_unit=None, fig_ax=None
+    df, key, parts=["core", "tail", "all"], coor_unit=None, fig_ax=None, bins="rice"
 ):
     fig, ax = plt.subplots() if fig_ax is None else fig_ax
 
@@ -49,7 +49,7 @@ def plot_core_tail_residuals(
 
     _, bins, _ = ax.hist(
         part_dfs,
-        bins="rice",
+        bins=bins,
         label=labels,
         histtype="stepfilled",
         color=colors,
@@ -74,7 +74,9 @@ def plot_core_tail_residuals(
     return fig, ax
 
 
-def plot_core_tail_pulls(df, key, part="core", coor_unit=None, fig_ax=None):
+def plot_core_tail_pulls(
+    df, key, part="core", coor_unit=None, fig_ax=None, bins="rice"
+):
     fig, ax = plt.subplots() if fig_ax is None else fig_ax
 
     if part == "core":
@@ -89,17 +91,18 @@ def plot_core_tail_pulls(df, key, part="core", coor_unit=None, fig_ax=None):
 
     pull = part_df[key]
     pull = pull[np.isfinite(pull)]
-    mu, sigma = norm.fit(pull)
+    mu, sigma = sps.norm.fit(pull)
+    skew = sps.skew(pull)
 
-    ax.hist(
-        np.clip(pull, -5 * sigma, 5 * sigma), bins="rice", density=True, color=color
-    )
+    ax.hist(np.clip(pull, -5 * sigma, 5 * sigma), bins=bins, density=True, color=color)
 
     x = np.linspace(*ax.get_xlim(), 200)
     ax.plot(
         x,
-        norm.pdf(x, mu, sigma),
-        label="$\mu$={:.2f}, $\sigma$={:.2f}".format(mu, sigma),
+        sps.norm.pdf(x, mu, sigma),
+        label="$\mu$={:.2f}, $\sigma$={:.2f}, $\\tilde{{\mu}}_3={:.2f}$".format(
+            mu, sigma, skew
+        ),
         color="red",
         lw=2.0,
     )

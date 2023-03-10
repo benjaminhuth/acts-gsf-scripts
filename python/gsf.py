@@ -22,7 +22,7 @@ import acts
 import acts.examples
 from acts.examples.simulation import *
 from acts.examples.reconstruction import *
-from acts.examples.geant4 import GdmlDetectorConstruction
+from acts.examples.geant4 import *
 
 u = acts.UnitConstants
 
@@ -33,14 +33,16 @@ u = acts.UnitConstants
 assert "ACTS_ROOT" in os.environ and Path(os.environ["ACTS_ROOT"]).exists()
 
 # fmt: off
-parser = argparse.ArgumentParser(description='Run GSF Telescope')
+parser = argparse.ArgumentParser(description='Run GSF')
 parser.add_argument("detector", choices=["telescope", "odd", "sphenix"], help="which detector geometry to use")
 parser.add_argument('-p','--pick', help='pick track', type=int, default=-1)
 parser.add_argument('-n','--events', help='number of events', type=int, default=1)
 parser.add_argument('-j','--jobs', help='number of jobs', type=int, default=-1)
 parser.add_argument('-s','--skip', help='number of skipped events', type=int, default=0)
 parser.add_argument('-c','--components', help='number of GSF components', type=int, default=4)
+parser.add_argument('--cutoff',help='weight cutoff of GSF components', type=float, default=1.e-4)
 parser.add_argument('--surfaces', help='number of telescope surfaces', type=int, default=10)
+parser.add_argument('--particles', help='particles per event', type=int, default=1000)
 parser.add_argument('--pmin', help='minimum momentum for particle gun', type=float, default=4.0)
 parser.add_argument('--pmax', help='maximum momentum for particle gun', type=float, default=4.0)
 parser.add_argument('--erroronly', help='set loglevel to show only errors (except sequencer)', default=False, action="store_true")
@@ -53,6 +55,7 @@ parser.add_argument('--plt_show', help='Call plt.show() in the end', action="sto
 parser.add_argument('--disable_fatras_interactions', help="no  interactions in FATRAS", default=False, action="store_true")
 parser.add_argument('-o', '--output', help="Override default output dir")
 parser.add_argument('--skip_analysis', default=False, action="store_true")
+parser.add_argument('--seeding', default="smeared", choices=["smeared", "truth", "estimated"])
 args = vars(parser.parse_args())
 # fmt: on
 
@@ -93,6 +96,7 @@ elif args["detector"] == "odd":
     oddMaterialMap = oddDir / "data/odd-material-maps.root"
     # digiConfigFile = oddDir / "config/odd-digi-smearing-config.json"
     digiConfigFile = "config/odd/odd-digi-smearing-config.json"
+    seedingSel = oddDir / "config/odd-seeding-config.json"
     oddMaterialDeco = acts.IMaterialDecorator.fromFile(oddMaterialMap)
 
     detector, trackingGeometry, decorators = getOpenDataDetector(
@@ -142,6 +146,8 @@ s.addWriter(
 )
 
 realistic_stddev = acts.Vector4(0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns)
+# realistic_stddev = acts.Vector4(0, 0, 0, 0)
+
 addParticleGun(
     s,
     MomentumConfig(args["pmin"] * u.GeV, args["pmax"] * u.GeV, transverse=False),
@@ -153,11 +159,9 @@ addParticleGun(
     rnd=rnd,
     vtxGen=acts.examples.GaussianVertexGenerator(
         mean=acts.Vector4(0, 0, 0, 0),
-        stddev=acts.Vector4(
-            0, 0, 0, 0
-        ),  # if args["detector"] == "telescope" else realistic_stddev,
+        stddev=realistic_stddev,
     ),
-    multiplicity=1000,
+    multiplicity=args["particles"],
     logLevel=defaultLogLevel,
 )
 
@@ -168,7 +172,11 @@ if use_geant:
         trackingGeometry,
         field,
         rnd,
-        outputDirCsv="csv",
+        postSelectParticles=ParticleSelectorConfig(
+            removeNeutral=True,
+            # removeEarlyEnergyLoss=True,
+            # removeEarlyEnergyLossThreshold=0.001
+        ),
         logLevel=acts.logging.INFO,
     )
 else:
@@ -177,8 +185,12 @@ else:
         trackingGeometry,
         field,
         rnd=rnd,
-        outputDirCsv="csv",
         logLevel=defaultLogLevel,
+        postSelectParticles=ParticleSelectorConfig(
+            removeNeutral=True,
+            # removeEarlyEnergyLoss=True,
+            # removeEarlyEnergyLossThreshold=0.001
+        ),
         enableInteractions=not args["disable_fatras_interactions"],
     )
 
@@ -228,40 +240,62 @@ else:
         digiConfigFile=digiConfigFile,
     )
 
+# addSeeding(
+#     s,
+#     trackingGeometry,
+#     field,
+#     inputParticles="particles_initial_selected",
+#     # particleSmearingSigmas=10*[ args["particle_smearing"] ],
+#     seedingAlgorithm=SeedingAlgorithm.TruthSmeared,
+#     logLevel=defaultLogLevel,
+#     truthSeedRanges=TruthSeedRanges(rho=(0.0, 1.0), nHits=(6, None)),
+#     initialVarInflation=6 * [100.0],
+# )
 
-addParticleSelection(
-    s,
-    ParticleSelectorConfig(
-        removeNeutral=True,
-        # removeEarlyEnergyLoss=True,
-        # removeEarlyEnergyLossThreshold=0.001
-    ),
-    inputParticles="particles_initial",
-    # inputSimHits="simhits",
-    outputParticles="particles_initial_selected_post_sim",
-    logLevel=defaultLogLevel,
+
+seedingAlgorithm = (
+    SeedingAlgorithm.TruthEstimated
+    if args["seeding"] == "estimated"
+    else SeedingAlgorithm.TruthSmeared
+)
+particleSmearingSigmas = (
+    ParticleSmearingSigmas(10 * [0.0])
+    if args["seeding"] == "truth"
+    else ParticleSmearingSigmas()
 )
 
 addSeeding(
     s,
     trackingGeometry,
     field,
-    inputParticles="particles_initial_selected_post_sim",
-    # particleSmearingSigmas=10*[ args["particle_smearing"] ],
-    seedingAlgorithm=SeedingAlgorithm.TruthSmeared,
+    seedingAlgorithm=seedingAlgorithm,
+    truthEstimatedSeedingAlgorithmConfigArg=TruthEstimatedSeedingAlgorithmConfigArg(
+        deltaR=(0.0, np.inf)
+    ),
+    truthSeedRanges=TruthSeedRanges(rho=(0.0, 1.0), nHits=(3, None)),
+    particleSmearingSigmas=particleSmearingSigmas,
+    initialVarInflation=6 * [100],
+    geoSelectionConfigFile=seedingSel,
+    inputParticles="particles_input",
     logLevel=defaultLogLevel,
-    truthSeedRanges=TruthSeedRanges(rho=(0.0, 1.0), nHits=(6, None)),
-    initialVarInflation=6 * [100.0],
 )
+
+particles = (
+    "truth_seeded_particles"
+    if args["seeding"] == "estimated"
+    else "truth_seeds_selected"
+)
+
 
 s.addAlgorithm(
     acts.examples.TruthTrackFinder(
         level=defaultLogLevel,
-        inputParticles="truth_seeds_selected",
+        inputParticles=particles,
         inputMeasurementParticlesMap="measurement_particles_map",
         outputProtoTracks="prototracks",
     )
 )
+
 
 kalmanOptions = {
     "multipleScattering": True,
@@ -270,6 +304,15 @@ kalmanOptions = {
     "freeToBoundCorrection": acts.examples.FreeToBoundCorrection(False),
     "level": acts.logging.INFO,
 }
+
+
+# s.addWriter(
+#     acts.examples.CsvTrackParametersWriter(
+#         inputTrackParameters="estimatedparameters",
+#         outputDir=str(outputDir/"csv"),
+#     )
+# )
+
 
 s.addAlgorithm(
     acts.examples.TrackFittingAlgorithm(
@@ -300,7 +343,7 @@ gsfOptions = {
         high_bhapprox,
     ),
     "finalReductionMethod": acts.examples.FinalReductionMethod.maxWeight,
-    "weightCutoff": 1.0e-4,
+    "weightCutoff": args["cutoff"],
     "level": acts.logging.VERBOSE
     if args["pick"] != -1 or args["verbose"]
     else acts.logging.ERROR,
@@ -339,7 +382,7 @@ for fitter in ("gsf", "kf"):
         acts.examples.RootTrajectorySummaryWriter(
             level=acts.logging.WARNING,
             inputTrajectories=trajectories,
-            inputParticles="truth_seeds_selected",
+            inputParticles=particles,
             inputMeasurementParticlesMap="measurement_particles_map",
             filePath=str(outputDir / "root/tracksummary_{}.root".format(fitter)),
         )
@@ -349,7 +392,7 @@ for fitter in ("gsf", "kf"):
         acts.examples.RootTrajectoryStatesWriter(
             level=acts.logging.WARNING,
             inputTrajectories=trajectories,
-            inputParticles="truth_seeds_selected",
+            inputParticles=particles,
             inputSimHits="simhits",
             inputMeasurementParticlesMap="measurement_particles_map",
             inputMeasurementSimHitsMap="measurement_simhits_map",
@@ -393,19 +436,22 @@ if args["skip_analysis"]:
 ############
 
 from default_analysis import default_analysis
+from short_analysis import short_analysis
 
-pdfreport = PdfPages(outputDir / "report.pdf")
-main_direction = "x" if args["detector"] == "telescope" else "r"
+# pdfreport = PdfPages(outputDir / "report.pdf")
+# main_direction = "x" if args["detector"] == "telescope" else "r"
+#
+# default_analysis(
+#     outputDir,
+#     main_direction,
+#     pmax=args["pmax"],
+#     pick_track=args["pick"],
+#     pdfreport=pdfreport,
+# )
 
-default_analysis(
-    outputDir,
-    main_direction,
-    pmax=args["pmax"],
-    pick_track=args["pick"],
-    pdfreport=pdfreport,
-)
+# pdfreport.close()
 
-pdfreport.close()
+short_analysis(outputDir)
 
 if args["plt_show"]:
     plt.show()

@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 import uproot
 import pprint
 
-from gsfanalysis.tracksummary_plots import make_full_residual_plot
-from gsfanalysis.pandas_import import uproot_to_pandas, remove_outliers_and_unify_index
+from gsfanalysis.tracksummary_plots import *
+from gsfanalysis.pandas_import import *
 from gsfanalysis.core_tail_utils import *
 from gsfanalysis.utils import *
 
@@ -33,9 +33,8 @@ summary_kf, states_kf = uproot_to_pandas(
     uproot.open(str(inputDir / "root/trackstates_kf.root:trackstates")),
 )
 
-nTracks = len(summary_gsf)
+print_basic_statistics(summary_gsf, summary_kf)
 summary_gsf, summary_kf = remove_outliers_and_unify_index(summary_gsf, summary_kf)
-print("Outliers: {:.2%}".format(1.0 - (len(summary_gsf) / nTracks)))
 
 # fig, ax = make_full_residual_plot([summary_kf, summary_gsf], ["KF", "GSF"])
 # fig.tight_layout()
@@ -47,24 +46,29 @@ print("Outliers: {:.2%}".format(1.0 - (len(summary_gsf) / nTracks)))
 summary_gsf = add_core_to_df_quantile(summary_gsf, "res_eQOP_fit", 0.95)
 summary_kf = add_core_to_df_quantile(summary_kf, "res_eQOP_fit", 0.95)
 
-for rkey, pkey, coor in zip(
-    ["res_eQOP_fit", "res_eLOC0_fit"],
-    ["pull_eQOP_fit", "pull_eLOC0_fit"],
-    [("qop", "1/GeV"), ("d_0", "mm")],
-):
-    fig, axes = plt.subplots(2, 2)
-    plot_core_tail_residuals(
-        summary_gsf, rkey, ["core", "tail", "all"], coor, (fig, axes[0, 0])
-    )
-    plot_core_tail_residuals(summary_gsf, rkey, ["core"], coor, (fig, axes[0, 1]))
+for summary_df, fitter in zip([summary_gsf, summary_kf], ["GSF", "KF"]):
+    fig, axes = plt.subplots(2, 4, figsize=(16, 9))
+    fig.suptitle(fitter)
+    for rkey, pkey, coor, ax in zip(
+        ["res_eQOP_fit", "res_eLOC0_fit"],
+        ["pull_eQOP_fit", "pull_eLOC0_fit"],
+        [("qop", "1/GeV"), ("d_0", "mm")],
+        axes,
+    ):
+        plot_core_tail_residuals(
+            summary_df, rkey, ["core", "tail", "all"], coor, (fig, ax[0])
+        )
+        ax[0].set_title("RES core & tail ${}$".format(coor[0]))
+        plot_core_tail_residuals(summary_df, rkey, ["core"], coor, (fig, ax[1]))
+        ax[1].set_title("RES core ${}$".format(coor[0]))
 
-    plot_core_tail_pulls(summary_gsf, pkey, "all", coor, (fig, axes[1, 0]))
-    plot_core_tail_pulls(summary_gsf, pkey, "core", coor, (fig, axes[1, 1]))
+        plot_core_tail_pulls(summary_df, pkey, "all", coor, (fig, ax[2]))
+        ax[2].set_title("PULL core & tail ${}$".format(coor[0]))
+        plot_core_tail_pulls(summary_df, pkey, "core", coor, (fig, ax[3]))
+        ax[3].set_title("PULL core ${}$".format(coor[0]))
 
-    fig.suptitle("GSF Residuals ${}$".format(coor[0]))
-
-    # axes = add_gsf_run_infos(axes, run_config)
-    axes = add_run_infos(axes, run_config)
+    # axes = add_run_infos(axes, run_config)
+    axes = add_commit_hash(axes, run_config)
     fig.tight_layout()
 
 plt.show()
