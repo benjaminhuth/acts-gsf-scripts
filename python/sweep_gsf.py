@@ -2,6 +2,7 @@ import tempfile
 import os
 import random
 import argparse
+import json
 import multiprocessing
 from pathlib import Path
 from functools import partial
@@ -11,6 +12,7 @@ from pprint import pprint
 
 import pandas as pd
 import numpy as np
+from scipy.stats import bootstrap
 
 from gsfanalysis.pandas_import import *
 from gsfanalysis.core_tail_utils import *
@@ -111,7 +113,6 @@ def gsf_subprocess(args, pars):
             logLevel=defaultLogLevel,
         )
 
-        # realistic_stddev = acts.Vector4(0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns)
         addParticleGun(
             s,
             MomentumConfig(
@@ -122,7 +123,10 @@ def gsf_subprocess(args, pars):
             ParticleConfig(1, acts.PdgParticle.eElectron, randomizeCharge=False),
             rnd=rnd,
             vtxGen=acts.examples.GaussianVertexGenerator(
-                mean=acts.Vector4(0, 0, 0, 0), stddev=acts.Vector4(0, 0, 0, 0)
+                mean=acts.Vector4(0, 0, 0, 0),
+                stddev=acts.Vector4(
+                    0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns
+                ),
             ),
             multiplicity=args["particles"],
             logLevel=defaultLogLevel,
@@ -155,13 +159,13 @@ def gsf_subprocess(args, pars):
 
         addParticleSelection(
             s,
-            ParticleSelectorConfig(
+            inputParticles="particles_initial",
+            # inputSimHits="simhits",
+            config=ParticleSelectorConfig(
                 removeNeutral=True,
                 # removeEarlyEnergyLoss=True,
                 # removeEarlyEnergyLossThreshold=0.001
             ),
-            inputParticles="particles_initial",
-            # inputSimHits="simhits",
             outputParticles="particles_initial_selected_post_sim",
             logLevel=defaultLogLevel,
         )
@@ -250,32 +254,45 @@ def gsf_subprocess(args, pars):
     result_row["components"] = components
     result_row["weight_cutoff"] = weight_cutoff
 
-    print(timing)
-
     fitter_timing = timing[timing["identifier"] == "Algorithm:TrackFittingAlgorithm"]
     assert len(fitter_timing) == 1
     result_row["timing"] = fitter_timing["time_perevent_s"]
 
+    summary_gsf = add_core_to_df_quantile(
+        summary_gsf, "res_eQOP_fit", args["core_quantile"]
+    )
     result_row["n_tracks"] = len(summary_gsf)
 
     summary_gsf_no_outliers = summary_gsf[summary_gsf["nOutliers"] == 0]
     result_row["n_outliers"] = len(summary_gsf) - len(summary_gsf_no_outliers)
 
-    summary_gsf = add_core_to_df_quantile(
-        summary_gsf, "res_eQOP_fit", args["core_quantile"]
-    )
     result_row["core_quantile"] = args["core_quantile"]
 
     local_coors = ["LOC0", "LOC1", "PHI", "THETA", "QOP"]
 
-    for coor in local_coors:
-        res_key = f"res_e{coor}_fit"
-        pull_key = f"pull_e{coor}_fit"
+    if args["filter_outliers"]:
+        summary_gsf = summary_gsf_no_outliers
 
-        result_row[f"res_{coor}_mean"] = np.mean(summary_gsf_no_outliers[res_key])
-        result_row[f"res_{coor}_rms"] = rms(summary_gsf_no_outliers[res_key])
-        result_row[f"pull_{coor}_mean"] = np.mean(summary_gsf_no_outliers[pull_key])
-        result_row[f"pull_{coor}_std"] = np.std(summary_gsf_no_outliers[pull_key])
+    summary_gsf_core = summary_gsf[summary_gsf["is_core"]]
+
+    for df, suffix in zip([summary_gsf, summary_gsf_core], ["", "_core"]):
+        for coor in local_coors:
+            res_key = f"res_e{coor}_fit"
+            pull_key = f"pull_e{coor}_fit"
+
+            for key, stat in [
+                (res_key, np.mean),
+                (res_key, rms),
+                (pull_key, np.mean),
+                (pull_key, np.std),
+            ]:
+                result_key = key.replace("fit", stat.__name__) + suffix
+
+                val = stat(df[key])
+                bootstrap_res = bootstrap((df[key],), stat)
+
+                result_row[result_key] = stat(df[key])
+                result_row[result_key + "_err"] = bootstrap_res.standard_error
 
     return pd.DataFrame(result_row)
 
@@ -291,8 +308,9 @@ if __name__ == "__main__":
     parser.add_argument('--particles', type=int, default=1000)
     parser.add_argument('--pmin', type=float, default=0.5)
     parser.add_argument('--pmax', type=float, default=20)
+    parser.add_argument('--filter_outliers', action="store_true", default=False)
     parser.add_argument('--core_quantile', type=float, default=0.95)
-    parser.add_argument('-o', '--output', type=str, default="output_sweep/result.csv")
+    parser.add_argument('-o', '--output', type=str, default="output_sweep")
     args = vars(parser.parse_args())
     # fmt: on
 
@@ -328,4 +346,10 @@ if __name__ == "__main__":
 
     out_dir = Path(args["output"])
     out_dir.mkdir(exist_ok=True, parents=True)
-    result_df.to_csv(out_dir, index=False)
+
+    with open(out_dir / "config.json", "w") as f:
+        args["component_sweep"] = components
+        args["weight_cutoff_sweep"] = weight_cutoff
+        json.dump(args, f, indent=4)
+
+    result_df.to_csv(out_dir / "result.csv", index=False)

@@ -202,7 +202,8 @@ def make_full_residual_plot(dfs, labels):
     return fig, axes
 
 
-def print_basic_statistics(summary_gsf, summary_kf):
+def print_basic_statistics(dfs, names):
+    assert len(dfs) == len(names)
     data = {}
 
     def append_to_data(key, value):
@@ -234,13 +235,8 @@ def print_basic_statistics(summary_gsf, summary_kf):
         append_to_data("pull QOP mean", np.mean(pull_qop))
         append_to_data("pull QOP std", np.std(pull_qop))
 
-    gsf_no_outliers = summary_gsf[summary_gsf["nOutliers"] == 0]
-    kf_no_outliers = summary_kf[summary_kf["nOutliers"] == 0]
-
-    make_summary_frame(summary_gsf, "GSF (all)   ")
-    make_summary_frame(gsf_no_outliers, "GSF (no outliers)")
-    make_summary_frame(summary_kf, "KF (all)   ")
-    # make_summary_frame(kf_no_outliers, "KF (no outliers)")
+    for df, name in zip(dfs, names):
+        make_summary_frame(df, name)
 
     with pd.option_context("display.float_format", "{:0.3f}".format):
         print(pd.DataFrame(data).set_index("index").transpose())

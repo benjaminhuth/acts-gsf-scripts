@@ -47,7 +47,11 @@ def short_analysis(inputDir: Path):
             )
         print("")
 
-    print_basic_statistics(summary_gsf, summary_kf)
+    gsf_no_outliers = summary_gsf[summary_gsf["nOutliers"] == 0]
+    print_basic_statistics(
+        [summary_gsf, gsf_no_outliers, summary_kf],
+        ["GSF (all)".rjust(12), "GSF (no outliers)".rjust(18), "KF".rjust(12)],
+    )
 
 
 if __name__ == "__main__":

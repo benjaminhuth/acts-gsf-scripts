@@ -23,28 +23,41 @@ assert inputDir.exists()
 with open(inputDir / "config.json", "r") as f:
     run_config = json.load(f)
 
-summary_gsf, states_gsf = uproot_to_pandas(
+summary_gsf_all, states_gsf = uproot_to_pandas(
     uproot.open(str(inputDir / "root/tracksummary_gsf.root:tracksummary")),
     uproot.open(str(inputDir / "root/trackstates_gsf.root:trackstates")),
 )
 
-summary_kf, states_kf = uproot_to_pandas(
+summary_kf_all, states_kf = uproot_to_pandas(
     uproot.open(str(inputDir / "root/tracksummary_kf.root:tracksummary")),
     uproot.open(str(inputDir / "root/trackstates_kf.root:trackstates")),
 )
 
-print_basic_statistics(summary_gsf, summary_kf)
-summary_gsf, summary_kf = remove_outliers_and_unify_index(summary_gsf, summary_kf)
+summary_gsf, summary_kf = remove_outliers_and_unify_index(
+    summary_gsf_all.copy(), summary_kf_all.copy()
+)
 
-# fig, ax = make_full_residual_plot([summary_kf, summary_gsf], ["KF", "GSF"])
-# fig.tight_layout()
+summary_gsf = add_core_to_df_quantile(summary_gsf, "res_eQOP_fit", 0.95)
+summary_kf = add_core_to_df_quantile(summary_kf, "res_eQOP_fit", 0.95)
+summary_gsf_core = summary_gsf[summary_gsf["is_core"]]
+print_basic_statistics(
+    [summary_gsf_all, summary_gsf, summary_gsf_core, summary_kf],
+    [
+        "GSF (all)".rjust(12),
+        "GSF (no outliers)".rjust(18),
+        "GSF (no outliers)".rjust(25),
+        "KF".rjust(12),
+    ],
+)
+
+# Residual plot
+fig, ax = make_full_residual_plot([summary_kf, summary_gsf], ["KF", "GSF"])
+fig.tight_layout()
 
 #############
 # Core Tail #
 #############
 
-summary_gsf = add_core_to_df_quantile(summary_gsf, "res_eQOP_fit", 0.95)
-summary_kf = add_core_to_df_quantile(summary_kf, "res_eQOP_fit", 0.95)
 
 for summary_df, fitter in zip([summary_gsf, summary_kf], ["GSF", "KF"]):
     fig, axes = plt.subplots(2, 4, figsize=(16, 9))

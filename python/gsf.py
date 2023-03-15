@@ -145,8 +145,12 @@ s.addWriter(
     )
 )
 
-realistic_stddev = acts.Vector4(0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns)
-# realistic_stddev = acts.Vector4(0, 0, 0, 0)
+if detector == "telescope":
+    realistic_stddev = acts.Vector4(0.0 * u.mm, 0.01 * u.mm, 0.01 * u.mm, 5.0 * u.ns)
+else:
+    realistic_stddev = acts.Vector4(
+        0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns
+    )
 
 addParticleGun(
     s,
@@ -304,14 +308,6 @@ kalmanOptions = {
     "freeToBoundCorrection": acts.examples.FreeToBoundCorrection(False),
     "level": acts.logging.INFO,
 }
-
-
-# s.addWriter(
-#     acts.examples.CsvTrackParametersWriter(
-#         inputTrackParameters="estimatedparameters",
-#         outputDir=str(outputDir/"csv"),
-#     )
-# )
 
 
 s.addAlgorithm(
