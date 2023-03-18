@@ -45,6 +45,8 @@ class GsfEnvironment:
                 self.decorators,
             ) = acts.examples.TelescopeDetector.create(**telescopeConfig)
 
+            self.seedingSel = Path("telescope/telescope-seeding-config.json")
+
         elif args["detector"] == "odd":
             from acts.examples.odd import getOpenDataDetector
 
@@ -62,6 +64,8 @@ class GsfEnvironment:
 
         elif args["detector"] == "sphenix":
             raise "Not yet supported"
+
+        assert self.seedingSel.exists()
 
         ###################
         # Setup sequencer #
