@@ -45,7 +45,7 @@ class GsfEnvironment:
                 self.decorators,
             ) = acts.examples.TelescopeDetector.create(**telescopeConfig)
 
-            self.seedingSel = Path("telescope/telescope-seeding-config.json")
+            self.seedingSel = Path("config/telescope/telescope-seeding-config.json")
 
         elif args["detector"] == "odd":
             from acts.examples.odd import getOpenDataDetector
@@ -71,14 +71,6 @@ class GsfEnvironment:
         # Setup sequencer #
         ###################
 
-        if args["output"] is not None:
-            self.outputDir = Path(args["output"])
-        else:
-            self.outputDir = Path.cwd() / "output_{}".format(args["detector"])
-
-        (self.outputDir / "root").mkdir(parents=True, exist_ok=True)
-        (self.outputDir / "csv").mkdir(exist_ok=True, parents=True)
-
         self.field = acts.ConstantBField(acts.Vector3(0.0, 0.0, 2 * u.T))
         self.rnd = acts.examples.RandomNumbers(seed=42)
 
@@ -92,8 +84,30 @@ class GsfEnvironment:
             acts.logging.VERBOSE if args["verbose"] else self.defaultLogLevel
         )
 
-    def run_sequencer(self, s):
+        #######################
+        # Setup Geant4 config #
+        #######################
+        self.g4detectorConstruction = getG4DetectorContruction(self.detector)
+
+        self.g4conf = makeGeant4SimulationConfig(
+            level=self.defaultLogLevel,
+            detector=self.g4detectorConstruction,
+            randomNumbers=self.rnd,
+            inputParticles="particles_input",
+            trackingGeometry=self.trackingGeometry,
+            magneticField=self.field,
+            # volumeMappings=,
+            # materialMappings=,
+        )
+        self.g4conf.outputSimHits = "simhits"
+        self.g4conf.outputParticlesInitial = "particles_initial"
+        self.g4conf.outputParticlesFinal = "particles_final"
+
+    def run_sequencer(self, s, outputDir: Path):
         u = acts.UnitConstants
+
+        (outputDir / "root").mkdir(parents=True, exist_ok=True)
+        (outputDir / "csv").mkdir(parents=True, exist_ok=True)
 
         if self.args["detector"] == "telescope":
             realistic_stddev = acts.Vector4(
@@ -125,19 +139,31 @@ class GsfEnvironment:
             logLevel=self.defaultLogLevel,
         )
 
+        postSelectorConfig = ParticleSelectorConfig(
+            removeNeutral=True,
+            # removeEarlyEnergyLoss=True,
+            # removeEarlyEnergyLossThreshold=0.001
+        )
+
         if not self.args["fatras"]:
-            addGeant4(
+            s.addAlgorithm(
+                Geant4Simulation(
+                    level=self.defaultLogLevel,
+                    config=self.g4conf,
+                )
+            )
+
+            addParticleSelection(
                 s,
-                self.detector,
-                self.trackingGeometry,
-                self.field,
-                self.rnd,
-                postSelectParticles=ParticleSelectorConfig(
+                inputParticles="particles_initial",
+                # inputSimHits="simhits",
+                config=ParticleSelectorConfig(
                     removeNeutral=True,
                     # removeEarlyEnergyLoss=True,
                     # removeEarlyEnergyLossThreshold=0.001
                 ),
-                logLevel=acts.logging.INFO,
+                outputParticles="particles_initial_selected",
+                logLevel=self.defaultLogLevel,
             )
         else:
             addFatras(
@@ -146,11 +172,7 @@ class GsfEnvironment:
                 self.field,
                 rnd=self.rnd,
                 logLevel=self.defaultLogLevel,
-                postSelectParticles=ParticleSelectorConfig(
-                    removeNeutral=True,
-                    # removeEarlyEnergyLoss=True,
-                    # removeEarlyEnergyLossThreshold=0.001
-                ),
+                postSelectParticles=postSelectorConfig,
                 enableInteractions=not self.args["disable_fatras_interactions"],
             )
 
@@ -200,18 +222,6 @@ class GsfEnvironment:
                 digiConfigFile=self.digiConfigFile,
             )
 
-        # addSeeding(
-        #     s,
-        #     trackingGeometry,
-        #     field,
-        #     inputParticles="particles_initial_selected",
-        #     # particleSmearingSigmas=10*[ args["particle_smearing"] ],
-        #     seedingAlgorithm=SeedingAlgorithm.TruthSmeared,
-        #     logLevel=defaultLogLevel,
-        #     truthSeedRanges=TruthSeedRanges(rho=(0.0, 1.0), nHits=(6, None)),
-        #     initialVarInflation=6 * [100.0],
-        # )
-
         seedingAlgorithm = (
             SeedingAlgorithm.TruthEstimated
             if self.args["seeding"] == "estimated"
@@ -235,7 +245,7 @@ class GsfEnvironment:
             particleSmearingSigmas=particleSmearingSigmas,
             initialVarInflation=6 * [100],
             geoSelectionConfigFile=self.seedingSel,
-            inputParticles="particles_input",
+            inputParticles="particles_initial_selected",
             logLevel=self.defaultLogLevel,
         )
 
@@ -254,32 +264,35 @@ class GsfEnvironment:
             )
         )
 
-        kalmanOptions = {
-            "multipleScattering": True,
-            "energyLoss": True,
-            "reverseFilteringMomThreshold": 0.0,
-            "freeToBoundCorrection": acts.examples.FreeToBoundCorrection(False),
-            "level": acts.logging.INFO,
-        }
+        kalman = False if "no_kalman" in self.args and self.args["no_kalman"] else True
 
-        s.addAlgorithm(
-            acts.examples.TrackFittingAlgorithm(
-                level=acts.logging.VERBOSE
-                if self.args["pick"] != -1
-                else self.defaultLogLevel,
-                inputMeasurements="measurements",
-                inputSourceLinks="sourcelinks",
-                inputProtoTracks="prototracks",
-                inputInitialTrackParameters="estimatedparameters",
-                outputTracks="tracks_kf",
-                directNavigation=False,
-                pickTrack=self.args["pick"],
-                trackingGeometry=self.trackingGeometry,
-                fit=acts.examples.makeKalmanFitterFunction(
-                    self.trackingGeometry, self.field, **kalmanOptions
-                ),
+        if kalman:
+            kalmanOptions = {
+                "multipleScattering": True,
+                "energyLoss": True,
+                "reverseFilteringMomThreshold": 0.0,
+                "freeToBoundCorrection": acts.examples.FreeToBoundCorrection(False),
+                "level": self.defaultLogLevel,
+            }
+
+            s.addAlgorithm(
+                acts.examples.TrackFittingAlgorithm(
+                    level=acts.logging.VERBOSE
+                    if self.args["pick"] != -1
+                    else self.defaultLogLevel,
+                    inputMeasurements="measurements",
+                    inputSourceLinks="sourcelinks",
+                    inputProtoTracks="prototracks",
+                    inputInitialTrackParameters="estimatedparameters",
+                    outputTracks="tracks_kf",
+                    directNavigation=False,
+                    pickTrack=self.args["pick"],
+                    trackingGeometry=self.trackingGeometry,
+                    fit=acts.examples.makeKalmanFitterFunction(
+                        self.trackingGeometry, self.field, **kalmanOptions
+                    ),
+                )
             )
-        )
 
         low_bhapprox = "/home/benjamin/Documents/athena/Tracking/TrkFitter/TrkGaussianSumFilter/Data/GeantSim_LT01_cdf_nC6_O5.par"
         high_bhapprox = "/home/benjamin/Documents/athena/Tracking/TrkFitter/TrkGaussianSumFilter/Data/GeantSim_GT01_cdf_nC6_O5.par"
@@ -296,10 +309,12 @@ class GsfEnvironment:
             "weightCutoff": self.args["cutoff"],
             "level": acts.logging.VERBOSE
             if self.args["pick"] != -1 or self.args["verbose"]
-            else acts.logging.ERROR,
+            else self.defaultLogLevel
             # "minimalMomentumThreshold": 0.,
         }
-        pprint(gsfOptions)
+
+        if not self.args["erroronly"]:
+            pprint(gsfOptions)
 
         s.addAlgorithm(
             acts.examples.TrackFittingAlgorithm(
@@ -318,7 +333,7 @@ class GsfEnvironment:
             )
         )
 
-        for fitter in ("gsf", "kf"):
+        for fitter in ["gsf", "kf"] if kalman else ["gsf"]:
             trajectories = "trajectories_" + fitter
             tracks = "tracks_" + fitter
 
@@ -337,24 +352,26 @@ class GsfEnvironment:
                     inputParticles=particles,
                     inputMeasurementParticlesMap="measurement_particles_map",
                     filePath=str(
-                        self.outputDir / "root/tracksummary_{}.root".format(fitter)
+                        outputDir / "root/tracksummary_{}.root".format(fitter)
                     ),
                 )
             )
 
-            s.addWriter(
-                acts.examples.RootTrajectoryStatesWriter(
-                    level=acts.logging.WARNING,
-                    inputTrajectories=trajectories,
-                    inputParticles=particles,
-                    inputSimHits="simhits",
-                    inputMeasurementParticlesMap="measurement_particles_map",
-                    inputMeasurementSimHitsMap="measurement_simhits_map",
-                    filePath=str(
-                        self.outputDir / "root/trackstates_{}.root".format(fitter)
-                    ),
+            no_states = "no_states" in self.args and self.args["no_states"]
+            if not no_states:
+                s.addWriter(
+                    acts.examples.RootTrajectoryStatesWriter(
+                        level=acts.logging.WARNING,
+                        inputTrajectories=trajectories,
+                        inputParticles=particles,
+                        inputSimHits="simhits",
+                        inputMeasurementParticlesMap="measurement_particles_map",
+                        inputMeasurementSimHitsMap="measurement_simhits_map",
+                        filePath=str(
+                            outputDir / "root/trackstates_{}.root".format(fitter)
+                        ),
+                    )
                 )
-            )
 
         s.run()
 

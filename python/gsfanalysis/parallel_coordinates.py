@@ -61,8 +61,8 @@ def parallel_coordinates(
             return x_std * (lmax - lmin) + lmin
 
         def only_scale(self, x):
-            s = np.log10 if self.col in log_columns else lambda x: x
-            x_std = s(x) / (s(self.max) - s(self.min))
+            # s = np.log10 if self.col in log_columns else lambda x: x
+            x_std = x / (self.max - self.min)
             return x_std * (lmax - lmin)
 
     x_coors = np.linspace(0, 1, len(df.columns))

@@ -18,245 +18,14 @@ from gsfanalysis.pandas_import import *
 from gsfanalysis.core_tail_utils import *
 
 
-def gsf_initializer():
-    import acts
-    import acts.examples
-    from acts.examples.odd import getOpenDataDetector
-    from acts.examples.geant4 import makeGeant4SimulationConfig
-    from acts.examples.simulation import getG4DetectorContruction
-
-    u = acts.UnitConstants
-    defaultLogLevel = acts.logging.FATAL
-
-    oddDir = Path(os.environ["ACTS_ROOT"]) / "thirdparty/OpenDataDetector"
-
-    oddMaterialMap = oddDir / "data/odd-material-maps.root"
-    oddMaterialDeco = acts.IMaterialDecorator.fromFile(oddMaterialMap)
-
-    global trackingGeometry
-    global detector
-    detector, trackingGeometry, decorators = getOpenDataDetector(
-        oddDir, mdecorator=oddMaterialDeco, logLevel=defaultLogLevel
-    )
-
-    g4detectorConstruction = getG4DetectorContruction(detector)
-
-    global field
-    field = acts.ConstantBField(acts.Vector3(0.0, 0.0, 2 * u.T))
-
-    global rnd
-    rnd = acts.examples.RandomNumbers(seed=42)
-
-    global g4conf
-    g4conf = makeGeant4SimulationConfig(
-        level=defaultLogLevel,
-        detector=g4detectorConstruction,
-        randomNumbers=rnd,
-        inputParticles="particles_input",
-        trackingGeometry=trackingGeometry,
-        magneticField=field,
-        # volumeMappings=,
-        # materialMappings=,
-    )
-    g4conf.outputSimHits = "simhits"
-    g4conf.outputParticlesInitial = "particles_initial"
-    g4conf.outputParticlesFinal = "particles_final"
-
-
-def gsf_subprocess(args, pars):
-    import acts
-    import acts.examples
-    from acts.examples.simulation import (
-        addParticleGun,
-        MomentumConfig,
-        EtaConfig,
-        PhiConfig,
-        ParticleConfig,
-        addGeant4,
-        addDigitization,
-        addParticleSelection,
-        ParticleSelectorConfig,
-        addFatras,
-    )
-    from acts.examples.reconstruction import (
-        addSeeding,
-        SeedingAlgorithm,
-        TruthSeedRanges,
-    )
-    from acts.examples.geant4 import Geant4Simulation
-
-    u = acts.UnitConstants
-    defaultLogLevel = acts.logging.FATAL
-
-    global trackingGeometry
-    global g4conf
-    global rnd
-    global field
-
-    digiConfigFile = "config/odd/odd-digi-smearing-config.json"
-
-    components, weight_cutoff = pars
-    print(
-        datetime.now().strftime("%H:%M:%S"),
-        multiprocessing.current_process().name,
-        "PARS:",
-        components,
-        weight_cutoff,
-    )
-
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        s = acts.examples.Sequencer(
-            events=args["events"],
-            numThreads=1,
-            outputDir=tmp_dir,
-            skip=0,
-            logLevel=defaultLogLevel,
-        )
-
-        addParticleGun(
-            s,
-            MomentumConfig(
-                args["pmin"] * u.GeV, args["pmax"] * u.GeV, transverse=False
-            ),
-            EtaConfig(-3, 3),
-            PhiConfig(0, 2 * np.pi),
-            ParticleConfig(1, acts.PdgParticle.eElectron, randomizeCharge=False),
-            rnd=rnd,
-            vtxGen=acts.examples.GaussianVertexGenerator(
-                mean=acts.Vector4(0, 0, 0, 0),
-                stddev=acts.Vector4(
-                    0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns
-                ),
-            ),
-            multiplicity=args["particles"],
-            logLevel=defaultLogLevel,
-        )
-
-        # addFatras(
-        #     s,
-        #     # detector=detector,
-        #     trackingGeometry=trackingGeometry,
-        #     field=field,
-        #     rnd=rnd,
-        #     logLevel=defaultLogLevel,
-        # )
-
-        s.addAlgorithm(
-            Geant4Simulation(
-                level=defaultLogLevel,
-                config=g4conf,
-            )
-        )
-
-        addDigitization(
-            s,
-            trackingGeometry=trackingGeometry,
-            field=field,
-            rnd=rnd,
-            digiConfigFile=digiConfigFile,
-            logLevel=defaultLogLevel,
-        )
-
-        addParticleSelection(
-            s,
-            inputParticles="particles_initial",
-            # inputSimHits="simhits",
-            config=ParticleSelectorConfig(
-                removeNeutral=True,
-                # removeEarlyEnergyLoss=True,
-                # removeEarlyEnergyLossThreshold=0.001
-            ),
-            outputParticles="particles_initial_selected_post_sim",
-            logLevel=defaultLogLevel,
-        )
-
-        addSeeding(
-            s,
-            trackingGeometry,
-            field,
-            inputParticles="particles_initial_selected_post_sim",
-            seedingAlgorithm=SeedingAlgorithm.TruthSmeared,
-            logLevel=defaultLogLevel,
-            truthSeedRanges=TruthSeedRanges(rho=(0.0, 1.0), nHits=(6, None)),
-            initialVarInflation=6 * [100.0],
-        )
-
-        s.addAlgorithm(
-            acts.examples.TruthTrackFinder(
-                level=defaultLogLevel,
-                inputParticles="truth_seeds_selected",
-                inputMeasurementParticlesMap="measurement_particles_map",
-                outputProtoTracks="prototracks",
-            )
-        )
-
-        low_bhapprox = "/home/benjamin/Documents/athena/Tracking/TrkFitter/TrkGaussianSumFilter/Data/GeantSim_LT01_cdf_nC6_O5.par"
-        high_bhapprox = "/home/benjamin/Documents/athena/Tracking/TrkFitter/TrkGaussianSumFilter/Data/GeantSim_GT01_cdf_nC6_O5.par"
-
-        gsfOptions = {
-            "maxComponents": components,
-            "abortOnError": False,
-            "disableAllMaterialHandling": False,
-            "betheHeitlerApprox": acts.examples.AtlasBetheHeitlerApprox.loadFromFiles(
-                low_bhapprox,
-                high_bhapprox,
-            ),
-            "finalReductionMethod": acts.examples.FinalReductionMethod.maxWeight,
-            "weightCutoff": weight_cutoff,
-            "level": defaultLogLevel,
-        }
-
-        s.addAlgorithm(
-            acts.examples.TrackFittingAlgorithm(
-                level=defaultLogLevel,
-                inputMeasurements="measurements",
-                inputSourceLinks="sourcelinks",
-                inputProtoTracks="prototracks",
-                inputInitialTrackParameters="estimatedparameters",
-                outputTracks="tracks_gsf",
-                directNavigation=False,
-                pickTrack=-1,
-                trackingGeometry=trackingGeometry,
-                fit=acts.examples.makeGsfFitterFunction(
-                    trackingGeometry, field, **gsfOptions
-                ),
-            )
-        )
-
-        s.addAlgorithm(
-            acts.examples.TracksToTrajectories(
-                level=acts.logging.WARNING,
-                inputTracks="tracks_gsf",
-                outputTrajectories="trajectories_gsf",
-            )
-        )
-
-        s.addWriter(
-            acts.examples.RootTrajectorySummaryWriter(
-                level=acts.logging.WARNING,
-                inputTrajectories="trajectories_gsf",
-                inputParticles="truth_seeds_selected",
-                inputMeasurementParticlesMap="measurement_particles_map",
-                filePath=os.path.join(tmp_dir, "tracksummary_gsf.root"),
-            )
-        )
-
-        s.run()
-        del s
-
-        timing = pd.read_csv(os.path.join(tmp_dir, "timing.tsv"), sep="\t")
-
-        summary_gsf = uproot_to_pandas(
-            uproot.open(os.path.join(tmp_dir, "tracksummary_gsf.root:tracksummary"))
-        )
-
-    result_row = args.copy()
+def analyze_iteration(args, summary_gsf, timing):
+    result_row = {}
     result_row["components"] = components
     result_row["weight_cutoff"] = weight_cutoff
 
     fitter_timing = timing[timing["identifier"] == "Algorithm:TrackFittingAlgorithm"]
     assert len(fitter_timing) == 1
-    result_row["timing"] = fitter_timing["time_perevent_s"]
+    result_row["timing"] = float(fitter_timing["time_perevent_s"])
 
     summary_gsf = add_core_to_df_quantile(
         summary_gsf, "res_eQOP_fit", args["core_quantile"]
@@ -288,17 +57,118 @@ def gsf_subprocess(args, pars):
             ]:
                 result_key = key.replace("fit", stat.__name__) + suffix
 
-                val = stat(df[key])
-                bootstrap_res = bootstrap((df[key],), stat)
+                # val = stat(df[key])
+                # bootstrap_res = bootstrap((df[key],), stat)
 
                 result_row[result_key] = stat(df[key])
-                result_row[result_key + "_err"] = bootstrap_res.standard_error
+                # result_row[result_key + "_err"] = bootstrap_res.standard_error
 
     return pd.DataFrame(result_row)
 
 
-if __name__ == "__main__":
+def gsf_initializer(args):
+    from gsf_utils import GsfEnvironment
 
+    global gsf_env
+    gsf_env = GsfEnvironment(args)
+
+
+def gsf_subprocess(args, pars):
+    import acts.examples
+
+    components, weight_cutoff = pars
+
+    args["components"] = components
+    args["cutoff"] = weight_cutoff
+
+    print(
+        datetime.now().strftime("%H:%M:%S"),
+        multiprocessing.current_process().name,
+        "PARS:",
+        components,
+        weight_cutoff,
+    )
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        global gsf_env
+
+        s = acts.examples.Sequencer(
+            events=args["events"],
+            numThreads=1,
+            outputDir=tmp_dir,
+            skip=0,
+            logLevel=gsf_env.defaultLogLevel,
+        )
+
+        gsf_env.args = args
+        gsf_env.run_sequencer(s, Path(tmp_dir))
+
+        timing = pd.read_csv(os.path.join(tmp_dir, "timing.tsv"), sep="\t")
+
+        summary_gsf = uproot_to_pandas(
+            uproot.open(
+                os.path.join(tmp_dir, "root/tracksummary_gsf.root:tracksummary")
+            )
+        )
+
+    return analyze_iteration(args, summary_gsf, timing)
+
+
+def run_in_pool(args, pars):
+    # Try to make the load a bit more balanced this way...
+    random.shuffle(pars)
+
+    with multiprocessing.Pool(
+        args["jobs"], initializer=partial(gsf_initializer, args)
+    ) as p:
+        dfs = p.map(partial(gsf_subprocess, args), pars, 1)
+
+    return pd.concat(dfs, ignore_index=True)
+
+
+def run_sequential(args, pars):
+    import acts.examples
+    from gsf_utils import GsfEnvironment
+
+    result_df = pd.DataFrame()
+
+    gsf_env = GsfEnvironment(args)
+
+    for components, weight_cutoff in pars:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            s = acts.examples.Sequencer(
+                events=args["events"],
+                numThreads=args["jobs"],
+                outputDir=tmp_dir,
+                skip=0,
+                logLevel=gsf_env.defaultLogLevel,
+            )
+
+            args["components"] = components
+            args["cutoff"] = weight_cutoff
+
+            gsf_env.args = args
+            gsf_env.run_sequencer(s, Path(tmp_dir))
+
+            del s
+
+            timing = pd.read_csv(os.path.join(tmp_dir, "timing.tsv"), sep="\t")
+
+            summary_gsf = uproot_to_pandas(
+                uproot.open(
+                    os.path.join(tmp_dir, "root/tracksummary_gsf.root:tracksummary")
+                )
+            )
+
+        iteration_df = analyze_iteration(args, summary_gsf, timing)
+        result_df = pd.concat([result_df, iteration_df], ignore_index=True)
+
+        tmp_dir
+
+    return result_df
+
+
+if __name__ == "__main__":
     assert "ACTS_ROOT" in os.environ and Path(os.environ["ACTS_ROOT"]).exists()
 
     # fmt: off
@@ -310,20 +180,33 @@ if __name__ == "__main__":
     parser.add_argument('--pmax', type=float, default=20)
     parser.add_argument('--filter_outliers', action="store_true", default=False)
     parser.add_argument('--core_quantile', type=float, default=0.95)
+    parser.add_argument('--fatras', action="store_true", default=False)
     parser.add_argument('-o', '--output', type=str, default="output_sweep")
     args = vars(parser.parse_args())
     # fmt: on
+
+    # Add additional fixed args
+    args["detector"] = "odd"
+    args["erroronly"] = True
+    args["verbose"] = False
+    args["debug"] = False
+    args["seeding"] = "smeared"
+    args["pick"] = -1
+    args["disable_fatras_interactions"] = False
+    args["no_kalman"] = True
+    args["fatras"] = True
+    args["no_states"] = True
 
     pprint(args)
 
     # components = [1, 2, 4, 8, 12, 16, 20, 24, 28, 32]
     # weight_cutoff = [1.0e-8, 1.0e-6, 1.0e-4, 1.0e-2, 1.0e-1]
 
-    components = [1, 4, 8, 12, 16]
-    weight_cutoff = [1.0e-8, 1.0e-4, 1.0e-2]
+    # components = [1, 4, 8, 12, 16]
+    # weight_cutoff = [1.0e-8, 1.0e-4, 1.0e-2]
 
-    # components = [4,4,4,4]
-    # weight_cutoff = [1.e-4,1.e-4, 1.e-4, 1.e-4]
+    components = [4, 4]
+    weight_cutoff = [1.0e-4, 1.0e-4]
 
     print("Sweep components:", components)
     print("Sweep weight cutoffs:", weight_cutoff)
@@ -334,14 +217,11 @@ if __name__ == "__main__":
         for wc in weight_cutoff:
             pars.append((c, wc))
 
-    # Try to make the load a bit more balanced this way...
-    random.shuffle(pars)
+    if args["fatras"]:
+        result_df = run_sequential(args, pars)
+    else:
+        result_df = run_in_pool(args, pars)
 
-    with multiprocessing.Pool(args["jobs"], initializer=gsf_initializer) as p:
-        dfs = p.map(partial(gsf_subprocess, args), pars, 1)
-
-    # Print & export result
-    result_df = pd.concat(dfs)
     print(result_df)
 
     out_dir = Path(args["output"])

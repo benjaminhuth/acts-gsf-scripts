@@ -53,21 +53,25 @@ parser.add_argument('--smearing', help='stddev for the pixel smearing', type=flo
 parser.add_argument('--plt_show', help='Call plt.show() in the end', action="store_true", default=False)
 parser.add_argument('--disable_fatras_interactions', help="no  interactions in FATRAS", default=False, action="store_true")
 parser.add_argument('-o', '--output', help="Override default output dir")
+parser.add_argument('--no_states', help="Don't write trackstates", default=False, action="store_true")
+parser.add_argument('--no_kalman', help="Don't simulate kalman fitter", default=False, action="store_true")
 parser.add_argument('--skip_analysis', default=False, action="store_true")
 parser.add_argument('--seeding', default="smeared", choices=["smeared", "truth", "estimated"])
 args = vars(parser.parse_args())
 # fmt: on
 
-##################
-# Build geometry #
-##################
+
+if args["output"] is not None:
+    outputDir = Path(args["output"])
+else:
+    outputDir = Path.cwd() / "output_{}".format(args["detector"])
 
 gsf_environment = gsf_utils.GsfEnvironment(args)
 
 s = acts.examples.Sequencer(
     events=args["events"],
     numThreads=args["jobs"] if args["fatras"] else 1,
-    outputDir=str(gsf_environment.outputDir),
+    outputDir=str(outputDir),
     skip=args["skip"],
     logLevel=acts.logging.INFO,
 )
@@ -76,18 +80,16 @@ s.addWriter(
     acts.examples.CsvTrackingGeometryWriter(
         level=gsf_environment.defaultLogLevel,
         trackingGeometry=gsf_environment.trackingGeometry,
-        outputDir=str(gsf_environment.outputDir / "csv"),
+        outputDir=str(outputDir / "csv"),
         writePerEvent=False,
     )
 )
 
-gsfConfig = gsf_environment.run_sequencer(s)
+gsfConfig = gsf_environment.run_sequencer(s, outputDir)
 del s
 
 # Bring geometry file to top for convenience
-shutil.copyfile(
-    gsf_environment.outputDir / "csv/detectors.csv", Path.cwd() / "detectors.csv"
-)
+shutil.copyfile(outputDir / "csv/detectors.csv", Path.cwd() / "detectors.csv")
 
 result = subprocess.run(
     ["git", "rev-parse", "--short", "HEAD"],
@@ -97,7 +99,7 @@ result = subprocess.run(
 actsCommitHash = result.stdout.decode("utf-8").rstrip()
 
 # Save configuration
-with open(gsf_environment.outputDir / "config.json", "w") as f:
+with open(outputDir / "config.json", "w") as f:
     config = args.copy()
     config["gsf"] = gsfConfig
     config["acts-commit-hash"] = actsCommitHash
@@ -126,7 +128,7 @@ from short_analysis import short_analysis
 
 # pdfreport.close()
 
-short_analysis(gsf_environment.outputDir)
+short_analysis(outputDir)
 
 if args["plt_show"]:
     plt.show()
