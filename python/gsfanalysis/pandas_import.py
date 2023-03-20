@@ -21,6 +21,9 @@ def uproot_to_pandas(summary, states=None):
         .drop(["entry", "subTraj_nr", "subentry"], axis=1)
     )  # .set_index(["event_nr", "multiTraj_nr"])
 
+    summary_df["res_eP_fit"] = summary_df["t_p"] - abs(1.0 / summary_df["eQOP_fit"])
+    summary_df["res_ePNORM_fit"] = summary_df["res_eP_fit"] / summary_df["t_p"]
+
     if states is None:
         return summary_df
     else:

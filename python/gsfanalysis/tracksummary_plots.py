@@ -167,9 +167,9 @@ def correlation_scatter_plot(summary, clip_res, do_printout=False):
     return fig, ax
 
 
-def make_full_residual_plot(dfs, labels):
+def make_full_residual_plot(dfs, labels, log=True, clip_std=None):
     assert len(dfs) == len(labels)
-    fig, axes = plt.subplots(2, 3, figsize=(18, 5))
+    fig, axes = plt.subplots(2, 4, figsize=(18, 5))
 
     res_keys = [
         "res_eLOC0_fit",
@@ -178,25 +178,42 @@ def make_full_residual_plot(dfs, labels):
         "res_eTHETA_fit",
         "res_eQOP_fit",
         "res_eT_fit",
+        "res_eP_fit",
+        "res_ePNORM_fit",
     ]
-    coor_names = ["d_0", "z", "\phi", "\\theta", "q/p", "t"]
-    units = ["mm", "mm", "rad", "rad", "1/GeV", "ns"]
+    coor_names = ["d_0", "z", "\phi", "\\theta", "q/p", "t", "p", "p"]
+    units = ["mm", "mm", "rad", "rad", "1/GeV", "ns", "GeV", ""]
 
     for ax, key, name, unit in zip(axes.flatten(), res_keys, coor_names, units):
-        _, bins = np.histogram(np.concatenate([df[key] for df in dfs]), bins="rice")
+        values = np.concatenate([df[key] for df in dfs])
+
+        if clip_std is not None:
+            mu, std = np.mean(values), np.std(values)
+            values = np.clip(values, mu - clip_std * std, mu + clip_std * std)
+
+        _, bins = np.histogram(values, bins="rice")
 
         hist_opts = dict(
             alpha=0.5, histtype="stepfilled", linewidth=1.2, edgecolor="black"
         )
 
         for df, fitter in zip(dfs, labels):
-            ax.hist(df[key], bins=bins, **hist_opts, label=fitter)
+            ax.hist(
+                np.clip(df[key], min(bins), max(bins)),
+                bins=bins,
+                **hist_opts,
+                label=fitter
+            )
 
-        ax.set_yscale("log")
+        if log:
+            ax.set_yscale("log")
+
         ax.set_title("${}$".format(name))
         ax.set_xlabel(
             "${{{}}}_{{fit}} - {{{}}}_{{true}} \quad [{}]$".format(name, name, unit)
         )
+
+    axes.flatten()[-1].set_xlabel("$(p_{fit} - p_{true}) / p_{true}$")
 
     axes[0, 0].legend()
     return fig, axes

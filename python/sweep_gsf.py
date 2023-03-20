@@ -10,8 +10,11 @@ from contextlib import redirect_stdout
 from datetime import datetime
 from pprint import pprint
 
+from tqdm import tqdm
+
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.stats import bootstrap
 
 from gsfanalysis.pandas_import import *
@@ -20,8 +23,8 @@ from gsfanalysis.core_tail_utils import *
 
 def analyze_iteration(args, summary_gsf, timing):
     result_row = {}
-    result_row["components"] = components
-    result_row["weight_cutoff"] = weight_cutoff
+    result_row["components"] = args["components"]
+    result_row["weight_cutoff"] = args["cutoff"]
 
     fitter_timing = timing[timing["identifier"] == "Algorithm:TrackFittingAlgorithm"]
     assert len(fitter_timing) == 1
@@ -37,7 +40,7 @@ def analyze_iteration(args, summary_gsf, timing):
 
     result_row["core_quantile"] = args["core_quantile"]
 
-    local_coors = ["LOC0", "LOC1", "PHI", "THETA", "QOP"]
+    local_coors = ["LOC0", "LOC1", "PHI", "THETA", "QOP", "P", "PNORM"]
 
     if args["filter_outliers"]:
         summary_gsf = summary_gsf_no_outliers
@@ -55,15 +58,37 @@ def analyze_iteration(args, summary_gsf, timing):
                 (pull_key, np.mean),
                 (pull_key, np.std),
             ]:
+                # Don't have pulls for P and PNORM
+                if "eP" in key and "pull" in key:
+                    continue
+
                 result_key = key.replace("fit", stat.__name__) + suffix
 
-                # val = stat(df[key])
-                # bootstrap_res = bootstrap((df[key],), stat)
+                sanitize_threshold = 1.0e8
+                sanitize_mask = df[key].between(-sanitize_threshold, sanitize_threshold)
 
-                result_row[result_key] = stat(df[key])
-                # result_row[result_key + "_err"] = bootstrap_res.standard_error
+                if sum(sanitize_mask) < len(df):
+                    tqdm.write(
+                        "WARNING   unreasonable high/low values encountered for {} / {}".format(
+                            key, stat.__name__
+                        )
+                    )
+                    tqdm.write(
+                        "WARNING   {}".format(df[~sanitize_mask][key].to_numpy())
+                    )
+                    tqdm.write(
+                        "WARNING   clip these to +-{} to prevent overflow".format(
+                            sanitize_threshold
+                        )
+                    )
 
-    return pd.DataFrame(result_row)
+                values = np.clip(df[key], -sanitize_threshold, sanitize_threshold)
+                result_row[result_key] = stat(values)
+                result_row[result_key + "_err"] = bootstrap(
+                    (values,), stat
+                ).standard_error
+
+    return pd.DataFrame({key: [result_row[key]] for key in result_row.keys()})
 
 
 def gsf_initializer(args):
@@ -81,12 +106,13 @@ def gsf_subprocess(args, pars):
     args["components"] = components
     args["cutoff"] = weight_cutoff
 
-    print(
-        datetime.now().strftime("%H:%M:%S"),
-        multiprocessing.current_process().name,
-        "PARS:",
-        components,
-        weight_cutoff,
+    tqdm.write(
+        "{} - {} - cmps: {}, wc: {}".format(
+            datetime.now().strftime("%H:%M:%S"),
+            multiprocessing.current_process().name,
+            components,
+            weight_cutoff,
+        )
     )
 
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -94,7 +120,7 @@ def gsf_subprocess(args, pars):
 
         s = acts.examples.Sequencer(
             events=args["events"],
-            numThreads=1,
+            numThreads=min(args["events"], 5) if args["fatras"] else 1,
             outputDir=tmp_dir,
             skip=0,
             logLevel=gsf_env.defaultLogLevel,
@@ -134,7 +160,15 @@ def run_sequential(args, pars):
 
     gsf_env = GsfEnvironment(args)
 
-    for components, weight_cutoff in pars:
+    for components, weight_cutoff in tqdm(pars):
+        tqdm.write(
+            "{} - {} - cmps: {}, wc: {}".format(
+                datetime.now().strftime("%H:%M:%S"),
+                components,
+                weight_cutoff,
+            )
+        )
+
         with tempfile.TemporaryDirectory() as tmp_dir:
             s = acts.examples.Sequencer(
                 events=args["events"],
@@ -175,6 +209,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run GSF sweep')
     parser.add_argument('-n','--events', type=int, default=3)
     parser.add_argument('-j','--jobs', type=int, default=3)
+    parser.add_argument("--detector", choices=["telescope", "odd"], default="odd")
     parser.add_argument('--particles', type=int, default=1000)
     parser.add_argument('--pmin', type=float, default=0.5)
     parser.add_argument('--pmax', type=float, default=20)
@@ -186,7 +221,8 @@ if __name__ == "__main__":
     # fmt: on
 
     # Add additional fixed args
-    args["detector"] = "odd"
+    args["surfaces"] = 10
+    args["digi_smearing"] = 0.01
     args["erroronly"] = True
     args["verbose"] = False
     args["debug"] = False
@@ -197,16 +233,20 @@ if __name__ == "__main__":
     args["fatras"] = True
     args["no_states"] = True
 
+    print("Config:")
     pprint(args)
 
-    # components = [1, 2, 4, 8, 12, 16, 20, 24, 28, 32]
-    # weight_cutoff = [1.0e-8, 1.0e-6, 1.0e-4, 1.0e-2, 1.0e-1]
+    components = [1, 2, 4, 8, 12, 16, 20, 24, 28, 32]
+    weight_cutoff = [1.0e-8, 1.0e-6, 1.0e-4, 1.0e-2, 1.0e-1]
+
+    components = [1, 2, 4, 8, 12, 16, 20, 24, 28, 32]
+    weight_cutoff = [1.0e-8, 1.0e-6, 1.0e-4]
 
     # components = [1, 4, 8, 12, 16]
     # weight_cutoff = [1.0e-8, 1.0e-4, 1.0e-2]
 
-    components = [4, 4]
-    weight_cutoff = [1.0e-4, 1.0e-4]
+    # components = [2, 4]
+    # weight_cutoff = [1.0e-2, 1.0e-4]
 
     print("Sweep components:", components)
     print("Sweep weight cutoffs:", weight_cutoff)
@@ -217,7 +257,9 @@ if __name__ == "__main__":
         for wc in weight_cutoff:
             pars.append((c, wc))
 
-    if args["fatras"]:
+    print("Grid size:", len(pars))
+
+    if args["fatras"] and False:
         result_df = run_sequential(args, pars)
     else:
         result_df = run_in_pool(args, pars)

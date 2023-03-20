@@ -10,7 +10,6 @@ import acts.examples
 
 from acts.examples.simulation import *
 from acts.examples.reconstruction import *
-from acts.examples.geant4 import *
 
 import numpy as np
 
@@ -87,21 +86,27 @@ class GsfEnvironment:
         #######################
         # Setup Geant4 config #
         #######################
-        self.g4detectorConstruction = getG4DetectorContruction(self.detector)
+        if not args["fatras"]:
+            from acts.examples.geant4 import (
+                getG4DetectorContruction,
+                makeGeant4SimulationConfig,
+            )
 
-        self.g4conf = makeGeant4SimulationConfig(
-            level=self.defaultLogLevel,
-            detector=self.g4detectorConstruction,
-            randomNumbers=self.rnd,
-            inputParticles="particles_input",
-            trackingGeometry=self.trackingGeometry,
-            magneticField=self.field,
-            # volumeMappings=,
-            # materialMappings=,
-        )
-        self.g4conf.outputSimHits = "simhits"
-        self.g4conf.outputParticlesInitial = "particles_initial"
-        self.g4conf.outputParticlesFinal = "particles_final"
+            self.g4detectorConstruction = getG4DetectorContruction(self.detector)
+
+            self.g4conf = makeGeant4SimulationConfig(
+                level=self.defaultLogLevel,
+                detector=self.g4detectorConstruction,
+                randomNumbers=self.rnd,
+                inputParticles="particles_input",
+                trackingGeometry=self.trackingGeometry,
+                magneticField=self.field,
+                # volumeMappings=,
+                # materialMappings=,
+            )
+            self.g4conf.outputSimHits = "simhits"
+            self.g4conf.outputParticlesInitial = "particles_initial"
+            self.g4conf.outputParticlesFinal = "particles_final"
 
     def run_sequencer(self, s, outputDir: Path):
         u = acts.UnitConstants
@@ -139,13 +144,9 @@ class GsfEnvironment:
             logLevel=self.defaultLogLevel,
         )
 
-        postSelectorConfig = ParticleSelectorConfig(
-            removeNeutral=True,
-            # removeEarlyEnergyLoss=True,
-            # removeEarlyEnergyLossThreshold=0.001
-        )
-
         if not self.args["fatras"]:
+            from acts.examples.geant4 import Geant4Simulation
+
             s.addAlgorithm(
                 Geant4Simulation(
                     level=self.defaultLogLevel,
@@ -153,18 +154,6 @@ class GsfEnvironment:
                 )
             )
 
-            addParticleSelection(
-                s,
-                inputParticles="particles_initial",
-                # inputSimHits="simhits",
-                config=ParticleSelectorConfig(
-                    removeNeutral=True,
-                    # removeEarlyEnergyLoss=True,
-                    # removeEarlyEnergyLossThreshold=0.001
-                ),
-                outputParticles="particles_initial_selected",
-                logLevel=self.defaultLogLevel,
-            )
         else:
             addFatras(
                 s,
@@ -172,22 +161,39 @@ class GsfEnvironment:
                 self.field,
                 rnd=self.rnd,
                 logLevel=self.defaultLogLevel,
-                postSelectParticles=postSelectorConfig,
+                preSelectParticles=None,
+                postSelectParticles=None,
                 enableInteractions=not self.args["disable_fatras_interactions"],
             )
 
-        digitization_args = {
-            "s": s,
-            "trackingGeometry": self.trackingGeometry,
-            "field": self.field,
-            # outputDirRoot=outputDir,
-            "rnd": self.rnd,
-            "outputDirCsv": None,  # "csv"
-            "logLevel": self.defaultLogLevel,
-        }
+        addParticleSelection(
+            s,
+            inputParticles="particles_initial",
+            # inputSimHits="simhits",
+            config=ParticleSelectorConfig(
+                removeNeutral=True,
+                # removeEarlyEnergyLoss=True,
+                # removeEarlyEnergyLossThreshold=0.001
+            ),
+            outputParticles="particles_initial_selected",
+            logLevel=self.defaultLogLevel,
+        )
+
+        def thisAddDigitization(digiConfigFile):
+            addDigitization(
+                s=s,
+                trackingGeometry=self.trackingGeometry,
+                field=self.field,
+                rnd=self.rnd,
+                # outputDirRoot=outputDir,
+                # outputDirCsv=(outputDir / "csv")
+                logLevel=self.defaultLogLevel,
+                digiConfigFile=digiConfigFile,
+            )
 
         if self.args["detector"] == "telescope":
             with NamedTemporaryFile() as fp:
+                # fmt: off
                 content = """
                     {{
                         "acts-geometry-hierarchy-map" : {{
@@ -206,27 +212,25 @@ class GsfEnvironment:
                             }}
                         ]
                     }}""".format(
-                    self.args["smearing"], self.args["smearing"]
-                )
+                        self.args["digi_smearing"],
+                        self.args["digi_smearing"]
+                    )
+                    # fmt: off
+                                
                 content = textwrap.dedent(content)
                 fp.write(str.encode(content))
                 fp.flush()
-
-                addDigitization(
-                    **digitization_args,
-                    digiConfigFile=fp.name,
-                )
+                
+                thisAddDigitization(fp.name)
         else:
-            addDigitization(
-                **digitization_args,
-                digiConfigFile=self.digiConfigFile,
-            )
+            thisAddDigitization(self.digiConfigFile)
 
         seedingAlgorithm = (
             SeedingAlgorithm.TruthEstimated
             if self.args["seeding"] == "estimated"
             else SeedingAlgorithm.TruthSmeared
         )
+
         particleSmearingSigmas = (
             ParticleSmearingSigmas(10 * [0.0])
             if self.args["seeding"] == "truth"

@@ -18,14 +18,12 @@ def short_analysis(inputDir: Path):
     with open(inputDir / "config.json", "r") as f:
         run_config = json.load(f)
 
-    summary_gsf, states_gsf = uproot_to_pandas(
+    summary_gsf = uproot_to_pandas(
         uproot.open(str(inputDir / "root/tracksummary_gsf.root:tracksummary")),
-        uproot.open(str(inputDir / "root/trackstates_gsf.root:trackstates")),
     )
 
-    summary_kf, states_kf = uproot_to_pandas(
+    summary_kf = uproot_to_pandas(
         uproot.open(str(inputDir / "root/tracksummary_kf.root:tracksummary")),
-        uproot.open(str(inputDir / "root/trackstates_kf.root:trackstates")),
     )
 
     dirname = inputDir.name

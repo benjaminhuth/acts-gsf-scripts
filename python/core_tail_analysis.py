@@ -51,7 +51,16 @@ print_basic_statistics(
 )
 
 # Residual plot
-fig, ax = make_full_residual_plot([summary_kf, summary_gsf], ["KF", "GSF"])
+fig, ax = make_full_residual_plot(
+    [summary_kf, summary_gsf], ["KF", "GSF"], log=True, clip_std=10
+)
+fig.suptitle("Note: clip at +-10 stddev")
+fig.tight_layout()
+
+fig, ax = make_full_residual_plot(
+    [summary_kf, summary_gsf], ["KF", "GSF"], log=False, clip_std=2
+)
+fig.suptitle("Note: clip at +-3 stddev")
 fig.tight_layout()
 
 #############

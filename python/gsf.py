@@ -49,7 +49,7 @@ parser.add_argument('--debug', help='set loglevel to show debug', default=False,
 parser.add_argument('-v', '--verbose', help='set loglevel to VERBOSE (except for sequencer)', default=False, action="store_true")
 parser.add_argument('--fatras', help='use FATRAS instead of Geant4', default=False, action="store_true")
 parser.add_argument('--particle_smearing', help='value used for initial particle smearing', type=float, default=None)
-parser.add_argument('--smearing', help='stddev for the pixel smearing', type=float, default=0.01)
+parser.add_argument('--telescope_digi_smearing', help='stddev for the pixel smearing', type=float, default=0.01)
 parser.add_argument('--plt_show', help='Call plt.show() in the end', action="store_true", default=False)
 parser.add_argument('--disable_fatras_interactions', help="no  interactions in FATRAS", default=False, action="store_true")
 parser.add_argument('-o', '--output', help="Override default output dir")
@@ -73,7 +73,7 @@ s = acts.examples.Sequencer(
     numThreads=args["jobs"] if args["fatras"] else 1,
     outputDir=str(outputDir),
     skip=args["skip"],
-    logLevel=acts.logging.INFO,
+    logLevel=acts.logging.DEBUG,
 )
 
 s.addWriter(
@@ -128,7 +128,8 @@ from short_analysis import short_analysis
 
 # pdfreport.close()
 
-short_analysis(outputDir)
+if args["pick"] == -1:
+    short_analysis(outputDir)
 
-if args["plt_show"]:
-    plt.show()
+# if args["plt_show"]:
+#     plt.show()

@@ -4,7 +4,14 @@ from scipy.interpolate import make_interp_spline
 
 
 def parallel_coordinates(
-    df, error_df=None, error_suffix="", lw=3, capsize=10, jitter_x=False, log_columns=[]
+    df,
+    error_df=None,
+    error_suffix="",
+    lw=3,
+    capsize=10,
+    jitter_x=False,
+    log_columns=[],
+    cmap=None,
 ):
     fig, lax = plt.subplots(figsize=(18, 7))
 
@@ -90,9 +97,9 @@ def parallel_coordinates(
     lax.set_xticklabels(df.columns)
     lax.set_ylim(lmin, lmax)
 
-    # for i in range(len(df)):
-    #     print(i, [ s(df.loc[i, col]) for s, col in zip(scalers, df.columns) ])
-
+    ##########################
+    # Function for smoothing #
+    ##########################
     def smooth(x, y):
         d = 0.33 * (1 / (len(x) - 1))
         x_help = (
@@ -106,10 +113,17 @@ def parallel_coordinates(
         x_spline = np.linspace(min(x), max(x), 300)
         return x_spline, spline(x_spline)
 
-    jitter = np.linspace(-0.01, 0.01, len(df)) if jitter_x else np.zeros(len(df))
+    ###########################
+    # Loop over the dataframe #
+    ###########################
+    x_offsets = np.linspace(-0.01, 0.01, len(df)) if jitter_x else np.zeros(len(df))
+    colormap_vals = np.linspace(0, 1, len(df))
 
-    for i in range(len(df)):
-        x = x_coors + jitter[i]
+    if isinstance(cmap, str):
+        cmap = plt.colormaps[cmap]
+
+    for i, x_offset, cmap_idx in zip(df.index, x_offsets, colormap_vals):
+        x = x_coors + x_offset
         y = [s(df.loc[i, col]) for s, col in zip(scalers, df.columns)]
 
         yerr = None
@@ -137,7 +151,8 @@ def parallel_coordinates(
                     yerr[0][j] = dlow * (lmax - lmin)
                     yerr[1][j] = dhigh * (lmax - lmin)
 
-        line = lax.plot(*smooth(x, y), lw=lw, zorder=i)[0]
+        color = cmap(cmap_idx) if cmap is not None else None
+        line = lax.plot(*smooth(x, y), lw=lw, zorder=i, c=color)[0]
         lax.errorbar(
             x=x,
             y=y,
@@ -169,23 +184,48 @@ if __name__ == "__main__":
         }
     )
 
-    parallel_coordinates(
-        df[["test", "timing"]],
-        log_columns=["timing"],
-    )
-    parallel_coordinates(df[["cmps", "wc", "timing", "test"]], log_columns=["timing"])
-    parallel_coordinates(
-        df[["cmps", "wc", "timing"]],
-        error_df=df[["cmps_errs", "wc_errs", "timing_errs"]],
-        error_suffix="_errs",
-        jitter_x=True,
-    )
-    parallel_coordinates(
-        df[["cmps", "wc", "timing"]],
-        error_df=df[["cmps_errs", "wc_errs", "timing_errs"]],
-        error_suffix="_errs",
-        jitter_x=True,
-        log_columns=["timing"],
-    )
+    fig, ax = parallel_coordinates(df)
+    fig.suptitle("Simple")
+    fig.tight_layout()
+    plt.show()
 
+    fig, ax = parallel_coordinates(df, cmap="plasma")
+    fig.suptitle("Simple with cmap")
+    fig.tight_layout()
+    plt.show()
+
+    fig, ax = parallel_coordinates(
+        df[df["cmps"] > 1],
+        log_columns=["timing"],
+    )
+    fig.suptitle("Select rows")
+    fig.tight_layout()
+    plt.show()
+
+    fig, ax = parallel_coordinates(
+        df[["cmps", "wc", "timing", "test"]], log_columns=["timing"]
+    )
+    fig.suptitle("With log")
+    fig.tight_layout()
+    plt.show()
+
+    fig, ax = parallel_coordinates(
+        df[["cmps", "wc", "timing"]],
+        error_df=df[["cmps_errs", "wc_errs", "timing_errs"]],
+        error_suffix="_errs",
+        jitter_x=True,
+    )
+    fig.suptitle("With errors")
+    fig.tight_layout()
+    plt.show()
+
+    fig, ax = parallel_coordinates(
+        df[["cmps", "wc", "timing"]],
+        error_df=df[["cmps_errs", "wc_errs", "timing_errs"]],
+        error_suffix="_errs",
+        jitter_x=True,
+        log_columns=["timing"],
+    )
+    fig.suptitle("With log errors")
+    fig.tight_layout()
     plt.show()
