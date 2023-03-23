@@ -19,7 +19,7 @@
     "telescope_digi_smearing": 0.01,
     "plt_show": false,
     "disable_fatras_interactions": false,
-    "output": "outputs/c20_n20",
+    "output": "output/c20_n20",
     "no_states": false,
     "no_kalman": false,
     "skip_analysis": false,
