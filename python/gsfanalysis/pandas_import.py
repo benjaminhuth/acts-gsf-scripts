@@ -69,16 +69,16 @@ def uproot_to_pandas(summary, states=None):
             return summary_df, states_df
 
 
-def remove_outliers_and_unify_index(summary1, summary2):
-    summary1no = summary1[summary1["nOutliers"] == 0]
-    summary2no = summary2[summary2["nOutliers"] == 0]
+def remove_outliers_and_unify_index(*args):
+    dfs = tuple(df[df["nOutliers"] == 0] for df in args)
+    dfs = tuple(df.set_index(["event_nr", "multiTraj_nr"]) for df in dfs)
 
-    summary1no = summary1no.set_index(["event_nr", "multiTraj_nr"])
-    summary2no = summary2no.set_index(["event_nr", "multiTraj_nr"])
-    common_idx = summary1no.index.intersection(summary2no.index)
-    summary1no = summary1no.loc[common_idx, :].reset_index()
-    summary2no = summary2no.loc[common_idx, :].reset_index()
+    common_idx = dfs[0].index
+    for df in dfs[1:]:
+        common_idx = common_idx.intersection(df.index)
 
-    assert len(summary1no) == len(summary2no)
+    dfs = tuple(df.loc[common_idx, :].reset_index() for df in dfs)
 
-    return summary1no, summary2no
+    assert all([len(dfs[0]) == len(df) for df in dfs])
+
+    return dfs

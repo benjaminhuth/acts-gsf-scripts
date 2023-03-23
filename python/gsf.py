@@ -6,6 +6,7 @@ import math
 import pprint
 import json
 import os
+import sys
 from tempfile import NamedTemporaryFile
 import subprocess
 import textwrap
@@ -33,7 +34,8 @@ assert "ACTS_ROOT" in os.environ and Path(os.environ["ACTS_ROOT"]).exists()
 
 # fmt: off
 parser = argparse.ArgumentParser(description='Run GSF')
-parser.add_argument("detector", choices=["telescope", "odd", "sphenix"], help="which detector geometry to use")
+parser.add_argument("--config_file", type=str, default="")
+parser.add_argument("--detector", choices=["telescope", "odd", "sphenix"], default="odd", help="which detector geometry to use")
 parser.add_argument('-p','--pick', help='pick track', type=int, default=-1)
 parser.add_argument('-n','--events', help='number of events', type=int, default=1)
 parser.add_argument('-j','--jobs', help='number of jobs', type=int, default=-1)
@@ -60,11 +62,37 @@ parser.add_argument('--seeding', default="smeared", choices=["smeared", "truth",
 args = vars(parser.parse_args())
 # fmt: on
 
+if len(args["config_file"]) > 0:
+    print(args["config_file"])
+    input_config = Path(args["config_file"])
+    assert input_config.exists()
+
+    with open(input_config) as f:
+        file_args = json.load(f)
+
+    # only override what was specified on command line (the non-defaults)
+    override = {
+        args[key]
+        for key in args.keys()
+        if args[key] != parser.get_default(key) and key != "config_file"
+    }
+    if len(override) > 0:
+        print("Override input file with:")
+        pprint.pprint(override)
+        file_args = {**file_args, **override}
+
+    args = file_args
+
 
 if args["output"] is not None:
     outputDir = Path(args["output"])
 else:
     outputDir = Path.cwd() / "output_{}".format(args["detector"])
+
+
+##################
+# Build geometry #
+##################
 
 gsf_environment = gsf_utils.GsfEnvironment(args)
 
@@ -91,19 +119,24 @@ del s
 # Bring geometry file to top for convenience
 shutil.copyfile(outputDir / "csv/detectors.csv", Path.cwd() / "detectors.csv")
 
-result = subprocess.run(
-    ["git", "rev-parse", "--short", "HEAD"],
-    capture_output=True,
-    cwd=os.environ["ACTS_ROOT"],
-)
-actsCommitHash = result.stdout.decode("utf-8").rstrip()
+# Dump detailed GSF config seperately
+with open(outputDir / "gsf.json", "w") as f:
+    json.dump(gsfConfig, f, indent=4)
 
 # Save configuration
 with open(outputDir / "config.json", "w") as f:
-    config = args.copy()
-    config["gsf"] = gsfConfig
-    config["acts-commit-hash"] = actsCommitHash
-    json.dump(config, f, indent=4)
+    actsCommitHash = (
+        subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            cwd=os.environ["ACTS_ROOT"],
+        )
+        .stdout.decode("utf-8")
+        .rstrip()
+    )
+    args["acts-commit-hash"] = actsCommitHash
+
+    json.dump(args, f, indent=4)
 
 if args["skip_analysis"]:
     exit()

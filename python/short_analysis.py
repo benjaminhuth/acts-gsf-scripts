@@ -18,6 +18,13 @@ def short_analysis(inputDir: Path):
     with open(inputDir / "config.json", "r") as f:
         run_config = json.load(f)
 
+    if (inputDir / "gsf.json").exists():
+        with open(inputDir / "gsf.json") as f:
+            gsf_config = json.load(f)
+    # Old format with all in one json
+    else:
+        gsf_config = run_config["gsf_config"]
+
     summary_gsf = uproot_to_pandas(
         uproot.open(str(inputDir / "root/tracksummary_gsf.root:tracksummary")),
     )
@@ -32,16 +39,18 @@ def short_analysis(inputDir: Path):
     print("#", inputDir.name, "#")
     print("#" * (len(dirname) + 4), "\n")
 
-    print("components:", run_config["gsf"]["maxComponents"])
-    print("weight cutoff:", run_config["gsf"]["weightCutoff"])
-    print("reduction:", run_config["gsf"]["finalReductionMethod"], "\n")
+    print("components:", gsf_config["maxComponents"])
+    print("weight cutoff:", gsf_config["weightCutoff"])
+    print("reduction:", gsf_config["finalReductionMethod"], "\n")
 
     if "particles" in run_config:
         total_tracks = run_config["events"] * run_config["particles"]
         for df, fitter in zip([summary_gsf, summary_kf], ["GSF", "KF"]):
             errors = total_tracks - len(df)
             print(
-                "Error tracks {}: {} ({:.1%}))".format(fitter, errors, errors / len(df))
+                "Error tracks {}: {} ({:.1%})".format(
+                    fitter, errors, errors / total_tracks
+                )
             )
         print("")
 

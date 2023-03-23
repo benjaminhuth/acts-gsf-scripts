@@ -87,10 +87,7 @@ class GsfEnvironment:
         # Setup Geant4 config #
         #######################
         if not args["fatras"]:
-            from acts.examples.geant4 import (
-                getG4DetectorContruction,
-                makeGeant4SimulationConfig,
-            )
+            from acts.examples.geant4 import makeGeant4SimulationConfig
 
             self.g4detectorConstruction = getG4DetectorContruction(self.detector)
 
@@ -172,6 +169,8 @@ class GsfEnvironment:
             # inputSimHits="simhits",
             config=ParticleSelectorConfig(
                 removeNeutral=True,
+                rho=(0, 2 * u.mm),
+                absZ=(0, 200 * u.mm),
                 # removeEarlyEnergyLoss=True,
                 # removeEarlyEnergyLossThreshold=0.001
             ),
@@ -249,7 +248,7 @@ class GsfEnvironment:
             particleSmearingSigmas=particleSmearingSigmas,
             initialVarInflation=6 * [100],
             geoSelectionConfigFile=self.seedingSel,
-            inputParticles="particles_initial_selected",
+            inputParticles="particles_input",  # "particles_initial_selected",
             logLevel=self.defaultLogLevel,
         )
 
@@ -313,7 +312,7 @@ class GsfEnvironment:
             "weightCutoff": self.args["cutoff"],
             "level": acts.logging.VERBOSE
             if self.args["pick"] != -1 or self.args["verbose"]
-            else self.defaultLogLevel
+            else acts.logging.ERROR  # self.defaultLogLevel
             # "minimalMomentumThreshold": 0.,
         }
 
