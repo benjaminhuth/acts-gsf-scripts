@@ -83,13 +83,11 @@ def analyze_iteration(args, summary_gsf, timing):
                 sanitize_mask = values.between(-sanitize_threshold, sanitize_threshold)
 
                 if sum(sanitize_mask) < len(df):
-                    print(
-                        f"WARNING   unreasonable high/low values encountered for {key} / {stat.__name__}"
-                    )
+                    # fmt: off
+                    print(f"WARNING   unreasonable high/low values encountered for {key} / {stat.__name__}")
                     print(f"WARNING   {df[~sanitize_mask][key].to_numpy()}")
-                    print(
-                        f"WARNING   clip these to +-{sanitize_threshold} to prevent overflow"
-                    )
+                    print(f"WARNING   clip these to +-{sanitize_threshold} to prevent overflow")
+                    # fmt: on
 
                     values = np.clip(values, -sanitize_threshold, sanitize_threshold)
 
