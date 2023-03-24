@@ -3,9 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as sps
 
-
-def rms(x):
-    return np.sqrt(np.mean(np.square(x)))
+from .statistics import rms
 
 
 def add_core_to_df_quantile(df, key, quantile=0.95):

@@ -24,5 +24,5 @@
     "no_kalman": false,
     "skip_analysis": false,
     "seeding": "smeared",
-    "acts-commit-hash": "db24fed48"
+    "acts-commit-hash": "c4b17c90c"
 }

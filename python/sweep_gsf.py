@@ -2,6 +2,7 @@ import tempfile
 import os
 import random
 import argparse
+import warnings
 import json
 import multiprocessing
 from pathlib import Path
@@ -19,6 +20,15 @@ from scipy.stats import bootstrap
 
 from gsfanalysis.pandas_import import *
 from gsfanalysis.core_tail_utils import *
+import gsfanalysis.statistics as stats
+
+
+def symmetric_q95(x):
+    return np.quantile(abs(x - stats.mode(x)), 0.95)
+
+
+def symmetric_q68(x):
+    return np.quantile(abs(x - stats.mode(x)), 0.68)
 
 
 def analyze_iteration(args, summary_gsf, timing):
@@ -41,6 +51,7 @@ def analyze_iteration(args, summary_gsf, timing):
     result_row["core_quantile"] = args["core_quantile"]
 
     local_coors = ["LOC0", "LOC1", "PHI", "THETA", "QOP", "P", "PNORM"]
+    local_coors = ["QOP", "P", "PNORM"]
 
     if args["filter_outliers"]:
         summary_gsf = summary_gsf_no_outliers
@@ -54,7 +65,10 @@ def analyze_iteration(args, summary_gsf, timing):
 
             for key, stat in [
                 (res_key, np.mean),
-                (res_key, rms),
+                (res_key, stats.rms),
+                (res_key, stats.mode),
+                (res_key, symmetric_q95),
+                (res_key, symmetric_q68),
                 (pull_key, np.mean),
                 (pull_key, np.std),
             ]:
@@ -64,29 +78,28 @@ def analyze_iteration(args, summary_gsf, timing):
 
                 result_key = key.replace("fit", stat.__name__) + suffix
 
+                values = df[key]
                 sanitize_threshold = 1.0e8
-                sanitize_mask = df[key].between(-sanitize_threshold, sanitize_threshold)
+                sanitize_mask = values.between(-sanitize_threshold, sanitize_threshold)
 
                 if sum(sanitize_mask) < len(df):
-                    tqdm.write(
-                        "WARNING   unreasonable high/low values encountered for {} / {}".format(
-                            key, stat.__name__
-                        )
+                    print(
+                        f"WARNING   unreasonable high/low values encountered for {key} / {stat.__name__}"
                     )
-                    tqdm.write(
-                        "WARNING   {}".format(df[~sanitize_mask][key].to_numpy())
-                    )
-                    tqdm.write(
-                        "WARNING   clip these to +-{} to prevent overflow".format(
-                            sanitize_threshold
-                        )
+                    print(f"WARNING   {df[~sanitize_mask][key].to_numpy()}")
+                    print(
+                        f"WARNING   clip these to +-{sanitize_threshold} to prevent overflow"
                     )
 
-                values = np.clip(df[key], -sanitize_threshold, sanitize_threshold)
-                result_row[result_key] = stat(values)
-                result_row[result_key + "_err"] = bootstrap(
-                    (values,), stat
-                ).standard_error
+                    values = np.clip(values, -sanitize_threshold, sanitize_threshold)
+
+                # print(key, stat.__name__)
+                val = stat(values)
+                result_row[result_key] = val
+
+                err = bootstrap((values,), stat).standard_error
+                result_row[result_key + "_err"] = err
+                # print("-> err",err)
 
     return pd.DataFrame({key: [result_row[key]] for key in result_row.keys()})
 
@@ -106,7 +119,7 @@ def gsf_subprocess(args, pars):
     args["components"] = components
     args["cutoff"] = weight_cutoff
 
-    tqdm.write(
+    print(
         "{} - {} - cmps: {}, wc: {}".format(
             datetime.now().strftime("%H:%M:%S"),
             multiprocessing.current_process().name,
@@ -160,9 +173,9 @@ def run_sequential(args, pars):
 
     gsf_env = GsfEnvironment(args)
 
-    for components, weight_cutoff in tqdm(pars):
-        tqdm.write(
-            "{} - {} - cmps: {}, wc: {}".format(
+    for components, weight_cutoff in pars:
+        print(
+            "{} - cmps: {}, wc: {}".format(
                 datetime.now().strftime("%H:%M:%S"),
                 components,
                 weight_cutoff,
@@ -236,8 +249,8 @@ if __name__ == "__main__":
     print("Config:")
     pprint(args)
 
-    components = [1, 2, 4, 8, 12, 16, 20, 24, 28, 32]
-    weight_cutoff = [1.0e-8, 1.0e-6, 1.0e-4, 1.0e-2, 1.0e-1]
+    # components = [1, 2, 4, 8, 12, 16, 20, 24, 28, 32]
+    # weight_cutoff = [1.0e-8, 1.0e-6, 1.0e-4, 1.0e-2, 1.0e-1]
 
     components = [1, 2, 4, 8, 12, 16, 20, 24, 28, 32]
     weight_cutoff = [1.0e-8, 1.0e-6, 1.0e-4]
@@ -245,8 +258,8 @@ if __name__ == "__main__":
     # components = [1, 4, 8, 12, 16]
     # weight_cutoff = [1.0e-8, 1.0e-4, 1.0e-2]
 
-    # components = [2, 4]
-    # weight_cutoff = [1.0e-2, 1.0e-4]
+    # components = [12]
+    # weight_cutoff = [1.0e-6]
 
     print("Sweep components:", components)
     print("Sweep weight cutoffs:", weight_cutoff)
@@ -259,7 +272,7 @@ if __name__ == "__main__":
 
     print("Grid size:", len(pars))
 
-    if args["fatras"] and False:
+    if args["jobs"] == 1:  # args["fatras"] and False:
         result_df = run_sequential(args, pars)
     else:
         result_df = run_in_pool(args, pars)

@@ -312,7 +312,7 @@ class GsfEnvironment:
             "weightCutoff": self.args["cutoff"],
             "level": acts.logging.VERBOSE
             if self.args["pick"] != -1 or self.args["verbose"]
-            else acts.logging.ERROR  # self.defaultLogLevel
+            else acts.logging.FATAL  # self.defaultLogLevel
             # "minimalMomentumThreshold": 0.,
         }
 

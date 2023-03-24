@@ -12,8 +12,9 @@ def parallel_coordinates(
     jitter_x=False,
     log_columns=[],
     cmap=None,
+    figsize=None,
 ):
-    fig, lax = plt.subplots(figsize=(18, 7))
+    fig, lax = plt.subplots(figsize=figsize)
 
     if error_df is not None:
         for col in df.columns:
@@ -174,13 +175,13 @@ if __name__ == "__main__":
 
     df = pd.DataFrame(
         {
-            "cmps": [0, 2, 3],
-            "cmps_errs": [1, 1, 0.5],
-            "wc": [-10, -12, -24],
-            "wc_errs": [1, 1, 0.5],
-            "timing": [100, 1000, 10000],
-            "timing_errs": [10, 100, 9000],
-            "test": [0, 0.5, 1],
+            "cmps": [32, 28, 24, 20, 16, 12, 8],
+            "cmps_errs": [1, 1, 0.5, 0, 0, 0, 0],
+            "wc": [-10, -12, -24, 0, 0, 0, 0],
+            "wc_errs": [1, 1, 0.5, 0, 0, 0, 0],
+            "timing": [100, 1000, 10000, 0, 0, 0, 0],
+            "timing_errs": [10, 100, 9000, 0, 0, 0, 0],
+            "test": [0, 0.5, 1, 0, 0, 0, 0],
         }
     )
 
@@ -188,6 +189,7 @@ if __name__ == "__main__":
     fig.suptitle("Simple")
     fig.tight_layout()
     plt.show()
+    exit()
 
     fig, ax = parallel_coordinates(df, cmap="plasma")
     fig.suptitle("Simple with cmap")
