@@ -83,6 +83,7 @@ def parallel_coordinates(
 
         ax.set_ylim(s.min, s.max)
         ax.spines["right"].set_position(("data", x))
+        ax.spines["left"].set_visible(False)
 
     for ax in axes:
         ax.spines["top"].set_visible(False)
