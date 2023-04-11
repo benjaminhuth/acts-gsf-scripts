@@ -22,17 +22,6 @@ def parallel_coordinates(
                 error_df = error_df.copy()
                 error_df[col + error_suffix] = np.zeros(len(df))
 
-    lmax = max(
-        df.iloc[:, 0]
-        + (error_df.iloc[:, 0] if error_df is not None else np.zeros(len(df)))
-    )
-    lmin = min(
-        df.iloc[:, 0]
-        - (error_df.iloc[:, 0] if error_df is not None else np.zeros(len(df)))
-    )
-    lmax += 0.1 * (lmax - lmin)
-    lmin -= 0.1 * (lmax - lmin)
-
     class Scaler:
         def __init__(self, col, scale=True):
             self.col = col
@@ -65,19 +54,17 @@ def parallel_coordinates(
 
         def __call__(self, x):
             s = np.log10 if self.col in log_columns else lambda x: x
-            x_std = (s(x) - s(self.min)) / (s(self.max) - s(self.min))
-            return x_std * (lmax - lmin) + lmin
+            return (s(x) - s(self.min)) / (s(self.max) - s(self.min))
 
         def only_scale(self, x):
             # s = np.log10 if self.col in log_columns else lambda x: x
-            x_std = x / (self.max - self.min)
-            return x_std * (lmax - lmin)
+            return x / (self.max - self.min)
 
     x_coors = np.linspace(0, 1, len(df.columns))
-    axes = [lax] + [lax.twinx() for _ in x_coors[1:]]
+    axes = [lax.twinx() for _ in x_coors]
     scalers = [Scaler(col) for col in df.columns]
 
-    for ax, x, s in zip(axes[1:], x_coors[1:], scalers[1:]):
+    for ax, x, s in zip(axes, x_coors, scalers):
         if s.col in log_columns:
             ax.set_yscale("log")
 
@@ -85,19 +72,22 @@ def parallel_coordinates(
         ax.spines["right"].set_position(("data", x))
         ax.spines["left"].set_visible(False)
 
-    for ax in axes:
         ax.spines["top"].set_visible(False)
         ax.spines["bottom"].set_visible(False)
+
         ax.set_zorder(100)
         ax.yaxis.set_zorder(100)
 
-    lax.spines["left"].set_position(("data", 0))
-    lax.spines["right"].set_visible(False)
     lax.xaxis.tick_top()
     lax.tick_params(axis="x", which="both", length=0)
     lax.set_xticks(x_coors)
     lax.set_xticklabels(df.columns)
-    lax.set_ylim(lmin, lmax)
+    lax.set_ylim(0, 1)
+    lax.spines["top"].set_visible(False)
+    lax.spines["bottom"].set_visible(False)
+    lax.spines["right"].set_visible(False)
+    lax.spines["left"].set_visible(False)
+    lax.get_yaxis().set_visible(False)
 
     ##########################
     # Function for smoothing #
@@ -150,8 +140,8 @@ def parallel_coordinates(
                     dlow /= np.log10(s.max) - np.log10(s.min)
                     dhigh /= np.log10(s.max) - np.log10(s.min)
 
-                    yerr[0][j] = dlow * (lmax - lmin)
-                    yerr[1][j] = dhigh * (lmax - lmin)
+                    yerr[0][j] = dlow
+                    yerr[1][j] = dhigh
 
         color = cmap(cmap_idx) if cmap is not None else None
         line = lax.plot(*smooth(x, y), lw=lw, zorder=i, c=color)[0]
@@ -176,34 +166,48 @@ if __name__ == "__main__":
 
     df = pd.DataFrame(
         {
+            "timing": [100, 1000, 10000, 1, 1, 1, 1],
             "cmps": [32, 28, 24, 20, 16, 12, 8],
             "cmps_errs": [1, 1, 0.5, 0, 0, 0, 0],
             "wc": [-10, -12, -24, 0, 0, 0, 0],
             "wc_errs": [1, 1, 0.5, 0, 0, 0, 0],
-            "timing": [100, 1000, 10000, 0, 0, 0, 0],
-            "timing_errs": [10, 100, 9000, 0, 0, 0, 0],
+            "timing_errs": [90, 900, 9000, 0, 0, 0, 0],
             "test": [0, 0.5, 1, 0, 0, 0, 0],
         }
     )
 
-    fig, ax = parallel_coordinates(df)
-    fig.suptitle("Simple")
+    fig, ax = parallel_coordinates(
+        df[["cmps", "wc", "timing"]],
+        error_df=df[["cmps_errs", "wc_errs", "timing_errs"]],
+        error_suffix="_errs",
+        jitter_x=True,
+        log_columns=["timing"],
+    )
+    fig.suptitle("With log errors")
     fig.tight_layout()
     plt.show()
     exit()
-
-    fig, ax = parallel_coordinates(df, cmap="plasma")
-    fig.suptitle("Simple with cmap")
-    fig.tight_layout()
-    plt.show()
 
     fig, ax = parallel_coordinates(
         df[df["cmps"] > 1],
         log_columns=["timing"],
     )
-    fig.suptitle("Select rows")
+    fig.suptitle("Select rows with log")
     fig.tight_layout()
     plt.show()
+    # exit()
+
+    fig, ax = parallel_coordinates(df)
+    fig.suptitle("Simple")
+    fig.tight_layout()
+    plt.show()
+    # exit()
+
+    fig, ax = parallel_coordinates(df, cmap="plasma")
+    fig.suptitle("Simple with cmap")
+    fig.tight_layout()
+    plt.show()
+    # exit()
 
     fig, ax = parallel_coordinates(
         df[["cmps", "wc", "timing", "test"]], log_columns=["timing"]
@@ -219,16 +223,5 @@ if __name__ == "__main__":
         jitter_x=True,
     )
     fig.suptitle("With errors")
-    fig.tight_layout()
-    plt.show()
-
-    fig, ax = parallel_coordinates(
-        df[["cmps", "wc", "timing"]],
-        error_df=df[["cmps_errs", "wc_errs", "timing_errs"]],
-        error_suffix="_errs",
-        jitter_x=True,
-        log_columns=["timing"],
-    )
-    fig.suptitle("With log errors")
     fig.tight_layout()
     plt.show()
