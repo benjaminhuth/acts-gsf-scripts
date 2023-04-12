@@ -251,7 +251,7 @@ if __name__ == "__main__":
     # weight_cutoff = [1.0e-8, 1.0e-6, 1.0e-4, 1.0e-2, 1.0e-1]
 
     components = [1, 2, 4, 8, 12, 16, 20, 24, 28, 32]
-    weight_cutoff = [1.0e-8, 1.0e-6, 1.0e-4]
+    weight_cutoff = [1.0e-8, 1.0e-6, 1.0e-4, 1.0e-2]
 
     # components = [1, 4, 8, 12, 16]
     # weight_cutoff = [1.0e-8, 1.0e-4, 1.0e-2]
