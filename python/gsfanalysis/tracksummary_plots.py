@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from .core_tail_utils import rms
+from .statistics import mode
 
 
 def correlation_plot(df, fig_ax=None, absolute=True):
@@ -167,8 +168,10 @@ def correlation_scatter_plot(summary, clip_res, do_printout=False):
     return fig, ax
 
 
-def make_full_residual_plot(dfs, labels, log=True, clip_std=None):
+def make_full_residual_plot(dfs, labels, log=True, clip_std=None, clip_quantile=None):
     assert len(dfs) == len(labels)
+    assert clip_std is None or clip_quantile is None
+
     fig, axes = plt.subplots(2, 4, figsize=(18, 5))
 
     res_keys = [
@@ -181,8 +184,8 @@ def make_full_residual_plot(dfs, labels, log=True, clip_std=None):
         "res_eP_fit",
         "res_ePNORM_fit",
     ]
-    coor_names = ["d_0", "z", "\phi", "\\theta", "q/p", "t", "p", "p"]
-    units = ["mm", "mm", "rad", "rad", "1/GeV", "ns", "GeV", ""]
+    coor_names = ["d_0", "z", "\phi", "\\theta", "q/p", "t", "p", "p norm"]
+    units = ["mm", "mm", "rad", "rad", "GeV^{-1}", "ns", "GeV", ""]
 
     for ax, key, name, unit in zip(axes.flatten(), res_keys, coor_names, units):
         values = np.concatenate([df[key] for df in dfs])
@@ -190,6 +193,14 @@ def make_full_residual_plot(dfs, labels, log=True, clip_std=None):
         if clip_std is not None:
             mu, std = np.mean(values), np.std(values)
             values = np.clip(values, mu - clip_std * std, mu + clip_std * std)
+
+        if clip_quantile is not None:
+            m = mode(values)
+            q = np.quantile(abs(values - m), clip_quantile)
+            lo = min(values[(values - m) > -q])
+            hi = max(values[(values - m) < q])
+            values = np.clip(values, lo, hi)
+
 
         _, bins = np.histogram(values, bins="rice")
 
