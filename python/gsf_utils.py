@@ -62,9 +62,31 @@ class GsfEnvironment:
             )
 
         elif args["detector"] == "sphenix":
-            raise "Not yet supported"
+            from acts.examples import TGeoDetector
+
+            geo_dir = Path(__file__).parent.parent / "config/sphenix"
+
+            self.digiConfigFile = (
+                geo_dir / "sphenix-digi-smearing-config-realistic.json"
+            )
+            self.seedingSel = geo_dir / "geo-selection-silicon.json"
+
+            matDeco = acts.IMaterialDecorator.fromFile(
+                geo_dir / "sphenix-mm-material.json",
+                level=acts.logging.INFO,
+            )
+
+            self.detector, self.trackingGeometry, self.decorators = TGeoDetector.create(
+                jsonFile=str(geo_dir / "tgeo-sphenix-mms.json"),
+                fileName=str(geo_dir / "sPHENIXActsGeom.root"),
+                surfaceLogLevel=acts.logging.INFO,
+                layerLogLevel=acts.logging.INFO,
+                volumeLogLevel=acts.logging.INFO,
+                mdecorator=matDeco,
+            )
 
         assert self.seedingSel.exists()
+        assert self.digiConfigFile.exists()
 
         ###################
         # Setup sequencer #
@@ -288,9 +310,7 @@ class GsfEnvironment:
                     inputProtoTracks="prototracks",
                     inputInitialTrackParameters="estimatedparameters",
                     outputTracks="tracks_kf",
-                    directNavigation=False,
                     pickTrack=self.args["pick"],
-                    trackingGeometry=self.trackingGeometry,
                     fit=acts.examples.makeKalmanFitterFunction(
                         self.trackingGeometry, self.field, **kalmanOptions
                     ),
@@ -327,9 +347,7 @@ class GsfEnvironment:
                 inputProtoTracks="prototracks",
                 inputInitialTrackParameters="estimatedparameters",
                 outputTracks="tracks_gsf",
-                directNavigation=False,
                 pickTrack=self.args["pick"],
-                trackingGeometry=self.trackingGeometry,
                 fit=acts.examples.makeGsfFitterFunction(
                     self.trackingGeometry, self.field, **gsfOptions
                 ),

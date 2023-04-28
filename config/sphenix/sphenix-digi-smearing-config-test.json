@@ -1,0 +1,38 @@
+{
+  "acts-geometry-hierarchy-map" : {
+    "format-version" : 0,
+    "value-identifier" : "digitization-configuration"
+  },
+  "entries": [
+    {
+      "volume" : 10,
+      "name": "MVTX - pixels",
+      "value" : {
+        "smearing" : [
+          {"index" : 0, "mean" : 0.0, "stddev" : 0.015, "type" : "Gauss"},
+          {"index" : 1, "mean" : 0.0, "stddev" : 0.015, "type" : "Gauss"}
+        ]
+      }
+    },
+    {
+      "volume" : 12,
+      "name": "INTT - strips",
+      "value" : {
+        "smearing" : [
+          {"index" : 0, "mean" : 0.0, "stddev" : 0.015, "type" : "Gauss"},
+          {"index" : 1, "mean" : 0.0, "stddev" : 0.015, "type" : "Gauss"}
+        ]
+      }
+    },
+    {
+      "volume" : 14,
+      "name": "TPC",
+      "value" : {
+        "smearing" : [
+          {"index" : 0, "mean" : 0.0, "stddev" : 0.15, "type" : "Gauss"},
+          {"index" : 1, "mean" : 0.0, "stddev" : 0.15, "type" : "Gauss"}
+        ]
+      }
+    }
+  ]
+}

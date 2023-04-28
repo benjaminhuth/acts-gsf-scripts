@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from gsfanalysis.pandas_import import *
 from gsfanalysis.trackstates_plots import *
 from gsfanalysis.tracksummary_plots import *
+from gsfanalysis.comparison_plot import *
 from gsfanalysis.core_tail_utils import rms
 
 
@@ -29,24 +30,34 @@ def default_analysis(
         uproot.open(str(outputDir / "root/trackstates_kf.root:trackstates")),
     )
 
-    print_basic_statistics(summary_gsf, summary_kf)
+    print_basic_statistics([summary_gsf, summary_kf], ["GSF", "KF"])
 
     ####################
     # Collective plots #
     ####################
     if pick_track == -1:
-        fig, _ = ratio_residual_plot(summary_gsf, summary_kf, log_scale=True, bins=50)
-        fig.suptitle("Ratio/Res plot (log)")
-        fig.tight_layout()
-        save_to_pdfreport(fig)
-
-        fig, _ = ratio_residual_plot(summary_gsf, summary_kf, log_scale=False)
-        fig.suptitle("Ratio/Res plot")
-        fig.tight_layout()
-        save_to_pdfreport(fig)
+        # fig, _ = ratio_residual_plot(summary_gsf, summary_kf, log_scale=True, bins=50)
+        # fig.suptitle("Ratio/Res plot (log)")
+        # fig.tight_layout()
+        # save_to_pdfreport(fig)
+        #
+        # fig, _ = ratio_residual_plot(summary_gsf, summary_kf, log_scale=False)
+        # fig.suptitle("Ratio/Res plot")
+        # fig.tight_layout()
+        # save_to_pdfreport(fig)
 
         fig, _ = make_full_residual_plot([summary_gsf, summary_kf], ["GSF", "KF"])
-        fig.suptitle("{} residuals")
+        fig.suptitle("Residuals")
+        fig.tight_layout()
+        save_to_pdfreport(fig)
+
+        sets = [
+            (summary_gsf, "GSF", "tab:blue"),
+            (summary_kf, "KF", "tab:orange"),
+        ]
+
+        fig, _ = make_gsf_detailed_comparison_plots(sets)
+        fig.suptitle("Comparison plot")
         fig.tight_layout()
         save_to_pdfreport(fig)
 
@@ -94,7 +105,7 @@ if __name__ == "__main__":
     # fmt: off
     parser = argparse.ArgumentParser(description="GSF/KF Analysis script")
     parser.add_argument("input_dir", help="where the root/ and csv/ dirs are")
-    parser.add_argument("--main_direction", help="x for telescope and r for cylindrical", type=str, choices=["r", "x", "y", "z"], default="truth")
+    parser.add_argument("--main_direction", help="x for telescope and r for cylindrical", type=str, choices=["r", "x", "y", "z"], default="r")
     parser.add_argument("--disable_meas_holes", help="do not do the measurements holes plot", default=False, action="store_true")
     args = vars(parser.parse_args())
     # fmt: on

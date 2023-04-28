@@ -101,7 +101,7 @@ s = acts.examples.Sequencer(
     numThreads=args["jobs"] if args["fatras"] else 1,
     outputDir=str(outputDir),
     skip=args["skip"],
-    logLevel=acts.logging.DEBUG,
+    logLevel=acts.logging.INFO,
 )
 
 s.addWriter(
