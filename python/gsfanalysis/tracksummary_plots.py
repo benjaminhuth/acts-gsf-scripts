@@ -201,7 +201,6 @@ def make_full_residual_plot(dfs, labels, log=True, clip_std=None, clip_quantile=
             hi = max(values[(values - m) < q])
             values = np.clip(values, lo, hi)
 
-
         _, bins = np.histogram(values, bins="rice")
 
         hist_opts = dict(
