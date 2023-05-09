@@ -53,7 +53,7 @@ class GsfEnvironment:
 
             oddMaterialMap = oddDir / "data/odd-material-maps.root"
             # digiConfigFile = oddDir / "config/odd-digi-smearing-config.json"
-            self.digiConfigFile = "config/odd/odd-digi-smearing-config.json"
+            self.digiConfigFile = Path("config/odd/odd-digi-smearing-config.json")
             self.seedingSel = oddDir / "config/odd-seeding-config.json"
 
             oddMaterialDeco = acts.IMaterialDecorator.fromFile(oddMaterialMap)
@@ -311,6 +311,7 @@ class GsfEnvironment:
                     inputInitialTrackParameters="estimatedparameters",
                     outputTracks="tracks_kf",
                     pickTrack=self.args["pick"],
+                    calibrator=acts.examples.makePassThroughCalibrator(),
                     fit=acts.examples.makeKalmanFitterFunction(
                         self.trackingGeometry, self.field, **kalmanOptions
                     ),
@@ -348,6 +349,7 @@ class GsfEnvironment:
                 inputInitialTrackParameters="estimatedparameters",
                 outputTracks="tracks_gsf",
                 pickTrack=self.args["pick"],
+                calibrator=acts.examples.makePassThroughCalibrator(),
                 fit=acts.examples.makeGsfFitterFunction(
                     self.trackingGeometry, self.field, **gsfOptions
                 ),

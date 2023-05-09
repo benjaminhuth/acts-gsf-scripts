@@ -258,8 +258,10 @@ def print_basic_statistics(dfs, names):
         res_qop = df["res_eQOP_fit"]
         pull_qop = df["pull_eQOP_fit"]
         append_to_data("res QOP mean", np.mean(res_qop))
+        append_to_data("res QOP mode", mode(res_qop))
         append_to_data("res QOP rms", rms(res_qop))
         append_to_data("pull QOP mean", np.mean(pull_qop))
+        append_to_data("pull QOP mode", mode(pull_qop))
         append_to_data("pull QOP std", np.std(pull_qop))
 
     for df, name in zip(dfs, names):
