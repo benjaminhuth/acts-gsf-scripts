@@ -1,6 +1,7 @@
 #!/bin/python3
 
 import argparse
+import json
 from pathlib import Path
 
 import uproot
@@ -14,7 +15,7 @@ from gsfanalysis.core_tail_utils import rms
 
 
 def default_analysis(
-    outputDir: Path, main_direction: str, pmax=100, pick_track=-1, pdfreport=None
+    outputDir: Path, main_direction: str, pmax: float, pick_track=-1, pdfreport=None
 ):
     def save_to_pdfreport(fig):
         if pdfreport is not None:
@@ -32,6 +33,11 @@ def default_analysis(
 
     print_basic_statistics([summary_gsf, summary_kf], ["GSF", "KF"])
 
+    # remove outlier
+    summary_gsf, summary_kf = remove_outliers_and_unify_index(
+        summary_gsf.copy(), summary_kf.copy()
+    )
+
     ####################
     # Collective plots #
     ####################
@@ -46,8 +52,10 @@ def default_analysis(
         # fig.tight_layout()
         # save_to_pdfreport(fig)
 
-        fig, _ = make_full_residual_plot([summary_gsf, summary_kf], ["GSF", "KF"])
-        fig.suptitle("Residuals")
+        fig, _ = make_full_residual_plot(
+            [summary_gsf, summary_kf], ["GSF", "KF"], clip_quantile=0.999
+        )
+        fig.suptitle(f"Residuals [{outputDir.name}]")
         fig.tight_layout()
         save_to_pdfreport(fig)
 
@@ -57,7 +65,7 @@ def default_analysis(
         ]
 
         fig, _ = make_gsf_detailed_comparison_plots(sets)
-        fig.suptitle("Comparison plot")
+        fig.suptitle(f"Comparison plot [{outputDir.name}]")
         fig.tight_layout()
         save_to_pdfreport(fig)
 
@@ -67,23 +75,23 @@ def default_analysis(
             [summary_gsf, summary_kf], [states_gsf, states_kf], ["GSF", "KF"]
         ):
             fig, _ = plot_at_track_position(
-                -1, states, name, main_direction, clip_abs=(0, 2 * pmax)
+                -1, states, name, main_direction, clip_abs=(0, 2 * pmax), log=False
             )
-            fig.suptitle("{} at first surface".format(name))
+            fig.suptitle(f"{name} at first surface [{outputDir.name}]")
             fig.tight_layout()
             save_to_pdfreport(fig)
 
             fig, _ = plot_at_track_position(
-                0, states, name, main_direction, clip_abs=(0, 2 * pmax)
+                0, states, name, main_direction, clip_abs=(0, 2 * pmax), log=False
             )
-            fig.suptitle("{} at last surface".format(name))
+            fig.suptitle(f"{name} at last surface [{outputDir.name}]")
             fig.tight_layout()
             save_to_pdfreport(fig)
 
-            fig, ax = correlation_scatter_plot(summary, clip_res=(-8, 8))
-            fig.suptitle("Correlation plots {}".format(name))
-            fig.tight_layout()
-            save_to_pdfreport(fig)
+            # fig, ax = correlation_scatter_plot(summary, clip_res=(-8,8))
+            # fig.suptitle(f"Correlation plots {name} [{outputDir.name}]")
+            # fig.tight_layout()
+            # save_to_pdfreport(fig)
 
     #########################
     # Single particle plots #
@@ -113,5 +121,8 @@ if __name__ == "__main__":
     path = Path(args["input_dir"])
     assert path.exists() and (path / "root").exists()
 
-    default_analysis(path, args["main_direction"])
+    with open(path / "config.json", "r") as f:
+        run_config = json.load(f)
+
+    default_analysis(path, args["main_direction"], pmax=run_config["pmax"])
     plt.show()

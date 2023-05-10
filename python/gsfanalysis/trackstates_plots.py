@@ -96,7 +96,8 @@ def plot_at_track_position(
     main_direction,
     clip_ratio=(0, 2),
     clip_abs=(0, 20),
-    bins=200,
+    bins=100,
+    log=True,
 ):
     aggregation = trackstates.groupby(["event_nr", "multiTraj_nr"]).agg(
         {
@@ -117,42 +118,44 @@ def plot_at_track_position(
         aggregation["p_smt"] = np.clip(aggregation["p_smt"], clip_abs[0], clip_abs[1])
         aggregation["p_flt"] = np.clip(aggregation["p_flt"], clip_abs[0], clip_abs[1])
 
-    fig, ax = plt.subplots(2, 3)
+    fig, ax = plt.subplots(1, 3)
     fig.suptitle("At track position '{}'".format(trk_idx))
 
-    _, b, _ = ax[0, 0].hist(
+    _, b, _ = ax[0].hist(
         aggregation["p_flt"],
         bins=bins,
         alpha=0.5,
-        label="{} prt".format(fitter_name),
+        label="{} flt".format(fitter_name),
     )
-    _ = ax[0, 0].hist(aggregation["t_p"], bins=b, alpha=0.5, label="true")
-    ax[0, 0].set_title("filtered & true")
-    ax[0, 0].set_yscale("log")
-    ax[0, 0].legend()
+    _ = ax[0].hist(aggregation["t_p"], bins=b, alpha=0.5, label="true")
+    ax[0].set_title("filtered (forward) vs. truth")
+    if log:
+        ax[0].set_yscale("log")
+    ax[0].legend()
 
-    _, b, _ = ax[1, 0].hist(
+    _, b, _ = ax[1].hist(
         aggregation["p_smt"],
         bins=bins,
         alpha=0.5,
         label="{} flt".format(fitter_name),
     )
-    _ = ax[1, 0].hist(aggregation["t_p"], bins=b, alpha=0.5, label="true")
-    ax[1, 0].set_title("smoothed & true")
-    ax[1, 0].set_yscale("log")
-    ax[1, 0].legend()
+    _ = ax[1].hist(aggregation["t_p"], bins=b, alpha=0.5, label="true")
+    ax[1].set_title("smoothed (smoothed) vs. truth")
+    if log:
+        ax[1].set_yscale("log")
+    ax[1].legend()
 
-    ratio = np.array(aggregation["p_flt"]) / np.array(aggregation["t_p"])
-    if clip_ratio:
-        ratio = np.clip(ratio, clip_ratio[0], clip_ratio[1])
-    _ = ax[0, 1].hist(ratio, bins=bins)
-    ax[0, 1].set_title("ratio flt / true")
-
-    ratio = np.array(aggregation["p_smt"]) / np.array(aggregation["t_p"])
-    if clip_ratio:
-        ratio = np.clip(ratio, clip_ratio[0], clip_ratio[1])
-    _ = ax[1, 1].hist(ratio, bins=bins)
-    ax[1, 1].set_title("ration smt / true")
+    # ratio = np.array(aggregation["p_flt"]) / np.array(aggregation["t_p"])
+    # if clip_ratio:
+    #     ratio = np.clip(ratio, clip_ratio[0], clip_ratio[1])
+    # _ = ax[0, 1].hist(ratio, bins=bins)
+    # ax[0, 1].set_title("ratio flt / true")
+    #
+    # ratio = np.array(aggregation["p_smt"]) / np.array(aggregation["t_p"])
+    # if clip_ratio:
+    #     ratio = np.clip(ratio, clip_ratio[0], clip_ratio[1])
+    # _ = ax[1, 1].hist(ratio, bins=bins)
+    # ax[1, 1].set_title("ration smt / true")
 
     get_pos = {
         "x": lambda df: df["t_x"],
@@ -163,12 +166,11 @@ def plot_at_track_position(
 
     all_pos = get_pos[main_direction](trackstates)
 
-    ax[0, 2].hist(
-        get_pos[main_direction](aggregation), range=(min(all_pos), max(all_pos))
-    )
-    ax[0, 2].set_title("{}-position at track index {}".format(main_direction, trk_idx))
+    ax[2].hist(get_pos[main_direction](aggregation), range=(min(all_pos), max(all_pos)))
+    ax[2].set_title("{}-position at track index {}".format(main_direction, trk_idx))
+    if log:
+        ax[2].set_yscale("log")
 
-    ax.flat[-1].set_visible(False)
     return fig, ax
 
 
