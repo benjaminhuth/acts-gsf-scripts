@@ -38,75 +38,56 @@ def default_analysis(
         summary_gsf.copy(), summary_kf.copy()
     )
 
-    ####################
-    # Collective plots #
-    ####################
-    if pick_track == -1:
-        # fig, _ = ratio_residual_plot(summary_gsf, summary_kf, log_scale=True, bins=50)
-        # fig.suptitle("Ratio/Res plot (log)")
-        # fig.tight_layout()
-        # save_to_pdfreport(fig)
-        #
-        # fig, _ = ratio_residual_plot(summary_gsf, summary_kf, log_scale=False)
-        # fig.suptitle("Ratio/Res plot")
-        # fig.tight_layout()
-        # save_to_pdfreport(fig)
+    # fig, _ = ratio_residual_plot(summary_gsf, summary_kf, log_scale=True, bins=50)
+    # fig.suptitle("Ratio/Res plot (log)")
+    # fig.tight_layout()
+    # save_to_pdfreport(fig)
+    #
+    # fig, _ = ratio_residual_plot(summary_gsf, summary_kf, log_scale=False)
+    # fig.suptitle("Ratio/Res plot")
+    # fig.tight_layout()
+    # save_to_pdfreport(fig)
 
-        fig, _ = make_full_residual_plot(
-            [summary_gsf, summary_kf], ["GSF", "KF"], clip_quantile=0.999
+    fig, _ = make_full_residual_plot(
+        [summary_gsf, summary_kf], ["GSF", "KF"], clip_quantile=0.999
+    )
+    fig.suptitle(f"Residuals [{outputDir.name}]")
+    fig.tight_layout()
+    save_to_pdfreport(fig)
+
+    sets = [
+        (summary_gsf, "GSF", "tab:blue"),
+        (summary_kf, "KF", "tab:orange"),
+    ]
+
+    fig, _ = make_gsf_detailed_comparison_plots(sets)
+    fig.suptitle(f"Comparison plot [{outputDir.name}]")
+    fig.tight_layout()
+    save_to_pdfreport(fig)
+
+    # analysis.performance_at_trackstates(trackstates_gsf, 'x')
+
+    for summary, states, name in zip(
+        [summary_gsf, summary_kf], [states_gsf, states_kf], ["GSF", "KF"]
+    ):
+        fig, _ = plot_at_track_position(
+            -1, states, name, main_direction, clip_abs=(0, 2 * pmax), log=False
         )
-        fig.suptitle(f"Residuals [{outputDir.name}]")
+        fig.suptitle(f"{name} at first surface [{outputDir.name}]")
         fig.tight_layout()
         save_to_pdfreport(fig)
 
-        sets = [
-            (summary_gsf, "GSF", "tab:blue"),
-            (summary_kf, "KF", "tab:orange"),
-        ]
-
-        fig, _ = make_gsf_detailed_comparison_plots(sets)
-        fig.suptitle(f"Comparison plot [{outputDir.name}]")
+        fig, _ = plot_at_track_position(
+            0, states, name, main_direction, clip_abs=(0, 2 * pmax), log=False
+        )
+        fig.suptitle(f"{name} at last surface [{outputDir.name}]")
         fig.tight_layout()
         save_to_pdfreport(fig)
 
-        # analysis.performance_at_trackstates(trackstates_gsf, 'x')
-
-        for summary, states, name in zip(
-            [summary_gsf, summary_kf], [states_gsf, states_kf], ["GSF", "KF"]
-        ):
-            fig, _ = plot_at_track_position(
-                -1, states, name, main_direction, clip_abs=(0, 2 * pmax), log=False
-            )
-            fig.suptitle(f"{name} at first surface [{outputDir.name}]")
-            fig.tight_layout()
-            save_to_pdfreport(fig)
-
-            fig, _ = plot_at_track_position(
-                0, states, name, main_direction, clip_abs=(0, 2 * pmax), log=False
-            )
-            fig.suptitle(f"{name} at last surface [{outputDir.name}]")
-            fig.tight_layout()
-            save_to_pdfreport(fig)
-
-            # fig, ax = correlation_scatter_plot(summary, clip_res=(-8,8))
-            # fig.suptitle(f"Correlation plots {name} [{outputDir.name}]")
-            # fig.tight_layout()
-            # save_to_pdfreport(fig)
-
-    #########################
-    # Single particle plots #
-    #########################
-    else:
-        pass
-        # fig, ax = analysis.single_particle_momentumplot(summary_gsf, states_gsf, "fwd", "bwd")
-        # ax.set_title("GSF single particle")
-        # fig.tight_layout()
-        # pdfreport.savefig(fig)
-        #
-        # fig, ax = analysis.single_particle_momentumplot(summary_kf, states_kf, "prt", "flt")
-        # ax.set_title("KF single particle")
-        # fig.tight_layout()
-        # pdfreport.savefig(fig)
+        fig, ax = correlation_scatter_plot(summary, clip_res=(-8, 8))
+        fig.suptitle(f"Correlation plots {name} [{outputDir.name}]")
+        fig.tight_layout()
+        save_to_pdfreport(fig)
 
 
 if __name__ == "__main__":

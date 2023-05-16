@@ -116,25 +116,42 @@ def ratio_residual_plot(summary_gsf, summary_kf, log_scale=False, bins=200):
 
 
 def correlation_scatter_plot(summary, clip_res, do_printout=False):
-    fig, ax = plt.subplots(2, 1)
 
-    keys = ["chi2Sum", "t_theta", "t_phi", "t_p", "res_p_fit", "t_delta_p"]
-    correlation_plot(summary[keys], (fig, ax[0]))
+    keys = [
+        "chi2Sum",
+        "t_theta",
+        "t_phi",
+        "t_p",
+        "res_p_fit",
+        "t_delta_p",
+        "t_delta_p_first_surface",
+    ]
 
     event = summary["event_nr"].to_numpy()
     traj = summary["multiTraj_nr"].to_numpy()
 
     data = summary[keys].to_numpy().T
+
+    def plot_mat_and_scatter(fig, ax, k_delta_p, k_res_p):
+        correlation_plot(summary[keys], (fig, ax[0]))
+
+        ax[1].scatter(
+            np.clip(data[k_res_p], clip_res[0], clip_res[1]),
+            data[k_delta_p],
+            alpha=0.5,
+        )
+        ax[1].set_xlabel(keys[k_res_p])
+        ax[1].set_ylabel(keys[k_delta_p])
+        ax[0].set_title(keys[k_delta_p])
+
+    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+
     k_res_p_fit = 4
     k_true_p_delta = 5
+    k_true_p_delta_first_surface = 6
 
-    ax[1].scatter(
-        np.clip(data[k_res_p_fit], clip_res[0], clip_res[1]),
-        data[k_true_p_delta],
-        alpha=0.5,
-    )
-    ax[1].set_xlabel(keys[k_res_p_fit])
-    ax[1].set_ylabel(keys[k_true_p_delta])
+    plot_mat_and_scatter(fig, axes[:, 0], k_true_p_delta, k_res_p_fit)
+    plot_mat_and_scatter(fig, axes[:, 1], k_true_p_delta_first_surface, k_res_p_fit)
 
     def print_idx_tuples(label, idxs):
         strs = [
@@ -151,21 +168,21 @@ def correlation_scatter_plot(summary, clip_res, do_printout=False):
         else:
             print("no samples")
 
-    # Energy increase
-    idxs_increase = np.nonzero(data[k_res_p_fit] > 0.5)[0]
-    idxs_decrease = np.nonzero(
-        np.logical_and(data[k_res_p_fit] < -0.5, data[k_true_p_delta] >= -0.5)
-    )[0]
-    idxs_loss = np.nonzero(
-        np.logical_and(data[k_res_p_fit] < -0.5, data[k_true_p_delta] < -0.5)
-    )[0]
-
     if do_printout:
+        # Energy increase
+        idxs_increase = np.nonzero(data[k_res_p_fit] > 0.5)[0]
+        idxs_decrease = np.nonzero(
+            np.logical_and(data[k_res_p_fit] < -0.5, data[k_true_p_delta] >= -0.5)
+        )[0]
+        idxs_loss = np.nonzero(
+            np.logical_and(data[k_res_p_fit] < -0.5, data[k_true_p_delta] < -0.5)
+        )[0]
+
         print_idx_tuples("Energy decrease without loss", idxs_decrease)
         print_idx_tuples("Energy increase", idxs_increase)
         print_idx_tuples("Wrong energy loss", idxs_loss)
 
-    return fig, ax
+    return fig, axes
 
 
 def make_full_residual_plot(dfs, labels, log=True, clip_std=None, clip_quantile=None):

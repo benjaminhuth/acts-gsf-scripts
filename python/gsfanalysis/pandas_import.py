@@ -43,9 +43,26 @@ def uproot_to_pandas(summary, states=None):
             p = 1.0 / abs(df["t_eQOP"].to_numpy())
             return p[0] - p[-1]
 
-        summary_df["t_delta_p"] = (
-            states_df.groupby(["event_nr", "multiTraj_nr"]).apply(delta_p).to_numpy()
+        qop_loc = states_df.columns.get_loc("t_eQOP")
+
+        summary_df["t_final_p"] = (
+            states_df.groupby(["event_nr", "multiTraj_nr"])
+            .apply(lambda df: abs(1.0 / df.iloc[0, qop_loc]))
+            .to_numpy()
         )
+
+        summary_df["t_p_first_surface"] = (
+            states_df.groupby(["event_nr", "multiTraj_nr"])
+            .apply(lambda df: abs(1.0 / df.iloc[-1, qop_loc]))
+            .to_numpy()
+        )
+
+        summary_df["t_delta_p"] = summary_df.t_final_p - summary_df.t_p
+        summary_df["t_delta_p_first_surface"] = (
+            summary_df.t_p_first_surface - summary_df.t_p
+        )
+
+        # summary_df["t_delta_p_first_surface"]
 
         if "gsf_cmps_weights_flt" in states.keys():
             levelNames = lambda x: {
