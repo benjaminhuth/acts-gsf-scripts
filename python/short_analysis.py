@@ -60,6 +60,9 @@ def short_analysis(inputDir: Path):
         ["GSF (all)".rjust(12), "GSF (no outliers)".rjust(18), "KF".rjust(12)],
     )
 
+    print("WORST")
+    print_worst(summary_gsf)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

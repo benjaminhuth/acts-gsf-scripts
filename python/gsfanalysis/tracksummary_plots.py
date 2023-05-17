@@ -286,3 +286,18 @@ def print_basic_statistics(dfs, names):
 
     with pd.option_context("display.float_format", "{:0.3f}".format):
         print(pd.DataFrame(data).set_index("index").transpose())
+
+
+def print_worst(tracksummary):
+    keys = ["res_eLOC0_fit", "res_eLOC1_fit", "res_eQOP_fit"]
+
+    for key in keys:
+        idxs = tracksummary[key].argsort()
+        print(tracksummary.loc[idxs[:5], ["event_nr", "multiTraj_nr", key]])
+        print()
+
+    print(
+        tracksummary[tracksummary["event_nr"] == 0][
+            ["event_nr", "multiTraj_nr", "res_eQOP_fit"]
+        ]
+    )
