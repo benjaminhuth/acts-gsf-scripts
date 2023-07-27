@@ -5,6 +5,7 @@ csv
 
 output*
 test*
+old
 
 gdml
 timing.tsv
@@ -14,3 +15,7 @@ __pycache__
 *.svg
 *.csv
 run*.sh
+.virtual_documents
+
+*.tar.gz
+perf.data
