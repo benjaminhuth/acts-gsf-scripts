@@ -11,4 +11,5 @@ export LD_LIBRARY_PATH=$ACTS_ROOT/build/thirdparty/OpenDataDetector/factory:$LD_
 
 rm -f perf.data
 #perf record --call-graph=dwarf -F1000 python3 gsf_benchmark.py $@
-perf record --call-graph=dwarf,33156 -F99 python3 gsf_benchmark.py $@
+#perf record --call-graph=dwarf,33156 -F99 python3 gsf_benchmark.py $@
+python3 gsf_benchmark.py $@

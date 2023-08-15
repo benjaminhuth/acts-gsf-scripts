@@ -118,16 +118,17 @@ gsfOptions = {
         "/home/benjamin/Documents/athena/Tracking/TrkFitter/TrkGaussianSumFilter/Data/GeantSim_GT01_cdf_nC6_O5.par"),
     "finalReductionMethod": acts.examples.FinalReductionMethod.maxWeight,
     "weightCutoff": 1.e-8,
-    "level": acts.logging.FATAL,
+    "level": acts.logging.VERBOSE,
 }
 pprint.pprint(gsfOptions)
 
 s.addAlgorithm(
     acts.examples.TrackFittingAlgorithm(
-        level=acts.logging.ERROR,
+        level=acts.logging.INFO,
         inputMeasurements="measurements",
         inputSourceLinks="sourcelinks",
         inputProtoTracks="prototracks",
+        pickTrack=3,
         inputInitialTrackParameters="estimatedparameters",
         outputTracks="gsf_trajectories",
         fit=acts.examples.makeGsfFitterFunction(
