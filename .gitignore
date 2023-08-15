@@ -11,7 +11,6 @@ gdml
 timing.tsv
 __pycache__
 .ipynb_checkpoints
-*.txt
 *.svg
 *.csv
 run*.sh
@@ -19,3 +18,4 @@ run*.sh
 
 *.tar.gz
 perf.data
+out.*
