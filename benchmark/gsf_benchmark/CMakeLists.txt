@@ -20,6 +20,21 @@ add_dependencies(ActsExamplesIoCsv ActsCore)
 set_target_properties(ActsExamplesIoCsv PROPERTIES IMPORTED_LOCATION "${ACTS_LIB_DIR}/libActsExamplesIoCsv.so")
 set_target_properties(ActsExamplesIoCsv PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${ACTS_SRC_DIR}/Examples/Io/Csv/include")
 
+add_library(ActsExamplesDigitization SHARED IMPORTED)
+add_dependencies(ActsExamplesDigitization ActsCore)
+set_target_properties(ActsExamplesDigitization PROPERTIES IMPORTED_LOCATION "${ACTS_LIB_DIR}/libActsExamplesDigitization.so")
+set_target_properties(ActsExamplesDigitization PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${ACTS_SRC_DIR}/Examples/Algorithms/Digitization/include")
+
+add_library(ActsExamplesIoRoot SHARED IMPORTED)
+add_dependencies(ActsExamplesIoRoot ActsCore)
+set_target_properties(ActsExamplesIoRoot PROPERTIES IMPORTED_LOCATION "${ACTS_LIB_DIR}/libActsExamplesIoRoot.so")
+set_target_properties(ActsExamplesIoRoot PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${ACTS_SRC_DIR}/Examples/Io/Root/include")
+
+add_library(ActsExamplesIoJson SHARED IMPORTED)
+add_dependencies(ActsExamplesIoJson ActsCore)
+set_target_properties(ActsExamplesIoJson PROPERTIES IMPORTED_LOCATION "${ACTS_LIB_DIR}/libActsExamplesIoJson.so")
+set_target_properties(ActsExamplesIoJson PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${ACTS_SRC_DIR}/Examples/Io/Json/include")
+
 add_library(ActsExamplesFitting SHARED IMPORTED)
 add_dependencies(ActsExamplesFitting ActsCore)
 set_target_properties(ActsExamplesFitting PROPERTIES IMPORTED_LOCATION "${ACTS_LIB_DIR}/libActsExamplesTrackFitting.so")
@@ -36,7 +51,7 @@ set_target_properties(ActsExamplesTruthTracking PROPERTIES INTERFACE_INCLUDE_DIR
 add_executable(gsf_benchmark main.cpp)
 
 target_link_options(gsf_benchmark PRIVATE -Wall -Wpedantic)
-# target_compile_options(gsf_benchmark BEFORE PRIVATE -fPIC)
+target_compile_options(gsf_benchmark BEFORE PRIVATE -fno-omit-frame-pointer)
 
 target_link_libraries(gsf_benchmark
     ActsExamplesFramework
@@ -44,6 +59,9 @@ target_link_libraries(gsf_benchmark
     ActsExamplesIoCsv
     ActsExamplesFitting
     ActsExamplesTruthTracking
+    ActsExamplesIoRoot
+    ActsExamplesIoJson
+    ActsExamplesDigitization
     # OpenDataDetector
     ActsCore
     ActsPluginDD4hep

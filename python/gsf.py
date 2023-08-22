@@ -102,6 +102,7 @@ s = acts.examples.Sequencer(
     outputDir=str(outputDir),
     skip=args["skip"],
     logLevel=acts.logging.INFO,
+    trackFpes=False,
 )
 
 s.addWriter(

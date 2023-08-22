@@ -66,7 +66,7 @@ s.addReader(
         level=defaultLogLevel,
         inputDir=str(inputDir),
         inputStem="particles_initial",
-        outputParticles="particles_initial",
+        outputParticles="particles",
     )
 )
 
@@ -79,16 +79,28 @@ s.addReader(
     )
 )
 
-s.addReader(
-    acts.examples.CsvMeasurementReader(
-        level=defaultLogLevel,
-        inputDir = str(inputDir),
-        outputMeasurements = "measurements",
-        outputMeasurementSimHitsMap = "measurement_simhit_map",
-        outputSourceLinks = "sourcelinks",
-        inputSimHits = "simhits",
-        outputMeasurementParticlesMap = "measurement_particles_map",
-    )
+# s.addReader(
+#     acts.examples.CsvMeasurementReader(
+#         level=defaultLogLevel,
+#         inputDir = str(inputDir),
+#         outputMeasurements = "measurements",
+#         outputMeasurementSimHitsMap = "measurement_simhit_map",
+#         outputSourceLinks = "sourcelinks",
+#         inputSimHits = "simhits",
+#         outputMeasurementParticlesMap = "measurement_particles_map",
+#     )
+# )
+digiFile = (Path(__file__).parent.parent.parent / "config/odd/odd-digi-smearing-config.json").resolve()
+assert digiFile.exists()
+addDigitization(
+    s=s,
+    trackingGeometry=trackingGeometry,
+    field=field,
+    rnd=rnd,
+    # outputDirRoot=outputDir,
+    # outputDirCsv=(outputDir / "csv")
+    logLevel=acts.logging.INFO,
+    digiConfigFile=digiFile,
 )
 
 addSeeding(
@@ -96,8 +108,13 @@ addSeeding(
     trackingGeometry,
     field,
     seedingAlgorithm=SeedingAlgorithm.TruthSmeared,
-    inputParticles="particles_initial",
-    truthSeedRanges=TruthSeedRanges(nHits=(9,None)),
+    # inputParticles="particles_initial",
+    # truthEstimatedSeedingAlgorithmConfigArg=TruthEstimatedSeedingAlgorithmConfigArg(
+    #     deltaR=(0.0, 10000.0)
+    # ),
+    # truthSeedRanges=TruthSeedRanges(rho=(0.0, 1.0), nHits=(3, None)),
+    # geoSelectionConfigFile=oddDir / "config/odd-seeding-config.json",
+    # initialVarInflation=6 * [100],
 )
 
 s.addAlgorithm(
@@ -118,7 +135,7 @@ gsfOptions = {
         "/home/benjamin/Documents/athena/Tracking/TrkFitter/TrkGaussianSumFilter/Data/GeantSim_GT01_cdf_nC6_O5.par"),
     "finalReductionMethod": acts.examples.FinalReductionMethod.maxWeight,
     "weightCutoff": 1.e-8,
-    "level": acts.logging.VERBOSE,
+    "level": acts.logging.ERROR,
 }
 pprint.pprint(gsfOptions)
 
@@ -128,7 +145,6 @@ s.addAlgorithm(
         inputMeasurements="measurements",
         inputSourceLinks="sourcelinks",
         inputProtoTracks="prototracks",
-        pickTrack=3,
         inputInitialTrackParameters="estimatedparameters",
         outputTracks="gsf_trajectories",
         fit=acts.examples.makeGsfFitterFunction(
