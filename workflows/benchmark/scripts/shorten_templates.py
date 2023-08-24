@@ -36,4 +36,8 @@ if __name__ == "__main__":
     for line in sys.stdin.readlines():
         line = shorten(line, ("<", ">"))
         line = shorten(line, ("(", ")"))
+        
+        # replace these as this is actually an operator name and not real parentheses
+        line = line.replace("operator(…)", "operator()")
+        
         sys.stdout.write(line)

@@ -1,9 +1,22 @@
+cmake_minimum_required(VERSION 3.16)
+
+project(gsf_cpp_benchmark)
+
+set(CMAKE_CXX_STANDARD 17)
+
 find_package(Acts REQUIRED COMPONENTS Core)
 find_package(TBB REQUIRED)
 find_package(Boost REQUIRED COMPONENTS program_options)
 
-set(ACTS_SRC_DIR "/home/benjamin/Documents/acts_project/acts")
-set(ACTS_LIB_DIR "/home/benjamin/Documents/acts_project/install/lib64")
+if(NOT DEFINED CACHE{ACTS_SRC_DIR})
+    message(FATAL_ERROR "ACTS_SRC_DIR not set")
+endif()
+
+if(NOT DEFINED CACHE{ACTS_INSTALL_DIR})
+    message(FATAL_ERROR "ACTS_INSTALL_DIR not set")
+endif()
+
+set(ACTS_LIB_DIR "${ACTS_INSTALL_DIR}/lib64")
 
 add_library(ActsExamplesFramework SHARED IMPORTED)
 add_dependencies(ActsExamplesFramework ActsCore)

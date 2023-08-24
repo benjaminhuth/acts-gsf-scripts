@@ -1,0 +1,6 @@
+multiplicity: 10000
+particles_per_vertex: 2
+n_events: 1
+p_min: 1
+p_max: 100
+verbose: False

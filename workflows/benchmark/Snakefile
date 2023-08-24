@@ -1,0 +1,91 @@
+configfile: "config/config.yaml"
+# lsdjflsjfslf
+envvars:
+    "ODD_DIR",
+    "ACTS_INSTALL_DIR",
+    "ACTS_SRC_DIR",
+
+rule simulated_particles:
+    output:
+        "tmp/event000000000-particles_initial.csv",
+        "tmp/event000000000-hits.csv",
+    script:
+        "scripts/make_data.py"
+        
+rule make_cpp_benchmark:
+    output:
+        "tmp/build/gsf_benchmark"
+    shell:
+        """
+        mkdir -p tmp/build
+        cd tmp/build
+        cmake ../../cpp_benchmark \
+            -D ACTS_SRC_DIR=$ACTS_SRC_DIR \
+            -D CMAKE_PREFIX_PATH=$ACTS_INSTALL_DIR \
+            -D ACTS_INSTALL_DIR=$ACTS_INSTALL_DIR
+        make
+        """
+
+rule perf_cpp_benchmark:
+    input:
+        "tmp/event000000000-particles_initial.csv",
+        "tmp/event000000000-hits.csv",
+        "tmp/build/gsf_benchmark",
+    output:
+        "tmp/perf.data"
+    shell:
+        """
+        perf record --call-graph=dwarf,65528 -F1000 --output=tmp/perf.data \
+            tmp/build/gsf_benchmark \
+                --input tmp \
+                --odd $ODD_DIR/xml/OpenDataDetector.xml \
+                --matmap $ODD_DIR/data/odd-material-maps.root \
+                --digicfg config/odd-digi-smearing-config.json
+        """
+        
+rule get_flamegraph:
+    output:
+        "thirdparty/FlameGraph/stackcollapse-perf.pl",
+        "thirdparty/FlameGraph/flamegraph.pl",
+    shell:
+        """
+        git clone https://github.com/brendangregg/FlameGraph thirdparty/FlameGraph
+        """
+        
+rule perf_process:
+    input:
+        "tmp/perf.data",
+        "thirdparty/FlameGraph/stackcollapse-perf.pl",
+        "thirdparty/FlameGraph/flamegraph.pl",
+        
+    output:
+        "plots/flamegraph.png",
+        "tmp/out.folded.filt.short.namespace"
+    shell:
+        """
+        perf script --input tmp/perf.data -a -F comm,pid,tid,time,event,ip,sym,dso > tmp/out.perf
+        thirdparty/FlameGraph/stackcollapse-perf.pl tmp/out.perf > tmp/out.folded
+        c++filt < tmp/out.folded > tmp/out.folded.filt
+        cat tmp/out.folded.filt | python3 scripts/shorten_templates.py > tmp/out.folded.filt.short
+        cat tmp/out.folded.filt.short | python3 scripts/remove_namespaces.py > tmp/out.folded.filt.short.namespace
+        thirdparty/FlameGraph/flamegraph.pl --minwidth=25 --width=1800 tmp/out.folded.filt.short.namespace > tmp/flamegraph.svg
+        convert tmp/flamegraph.svg plots/flamegraph.png
+        """
+
+
+rule plot_piecharts:
+    input:
+        "tmp/out.folded.filt.short.namespace"
+    output:
+        "plots/piechart_propagator.png",
+        "plots/piechart_actor.png"
+    script:
+        "scripts/plot_pie_charts.py"
+
+
+rule all:
+    input:
+        "plots/flamegraph.png",
+        "plots/piechart_propagator.png",
+        "plots/piechart_actor.png",
+    default_target: True
