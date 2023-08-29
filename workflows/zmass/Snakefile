@@ -20,8 +20,28 @@ rule compute_zmasses:
     script:
         "scripts/compute_zmass.py"
 
-rule fit_masses_root:
-    default_target: True
+rule fit_masses_scipy:
     input:
         "tmp/masses_gsf.csv",
         "tmp/masses_kf.csv",
+    output:
+        "plots/z0_mass_fit_scipy.png"
+    script:
+        "scripts/fit_zmass_scipy.py"
+
+
+rule fit_masses_root:
+    input:
+        "tmp/masses_gsf.csv",
+        "tmp/masses_kf.csv",
+    output:
+        "plots/z0_mass_fit_root.png"
+    script:
+        "scripts/fit_zmass_root.py"
+
+
+rule all:
+    default_target: True
+    input:
+        "plots/z0_mass_fit_scipy.png",
+        "plots/z0_mass_fit_root.png"
