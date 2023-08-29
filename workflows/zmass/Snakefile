@@ -1,0 +1,27 @@
+configfile: "config/config.yaml"
+
+envvars:
+    "ODD_DIR",
+
+rule simulated_particles:
+    output:
+        "tmp/tracksummary_gsf.root",
+        "tmp/tracksummary_kf.root",
+    script:
+        "scripts/simulation.py"
+
+rule compute_zmasses:
+    output:
+        "tmp/masses_gsf.csv",
+        "tmp/masses_kf.csv",
+    input:
+        "tmp/tracksummary_gsf.root",
+        "tmp/tracksummary_kf.root",
+    script:
+        "scripts/compute_zmass.py"
+
+rule fit_masses_root:
+    default_target: True
+    input:
+        "tmp/masses_gsf.csv",
+        "tmp/masses_kf.csv",
