@@ -1,12 +1,12 @@
 .snakemake
 
-workflows/benchmark/tmp
-workflows/benchmark/thirdparty
-
+thirdparty
+plots
 build
 tmp
 root
 csv
+archive
 
 output*
 test*

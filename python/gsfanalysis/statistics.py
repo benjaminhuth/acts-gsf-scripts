@@ -6,7 +6,7 @@ import numpy as np
 
 
 _modelib = ctypes.cdll.LoadLibrary(
-    (Path(__file__).parent.parent.parent / "build/python/gsfanalysis/lib/libmode.so").resolve()
+    Path(__file__).parent / "lib/build/libmode.so"
 )
 _cxxmode = _modelib.half_width_mode
 _cxxmode.restype = ctypes.c_double

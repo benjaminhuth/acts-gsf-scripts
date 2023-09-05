@@ -1,0 +1,95 @@
+configfile: "config/config.yaml"
+
+envvars:
+    "ODD_DIR",
+
+
+rule simulated_particles:
+    output:
+        "tmp/particles_initial.root",
+        "tmp/hits.root",
+    script:
+        "scripts/simulation.py"
+
+
+rule run_gsf_12cmps:
+    output:
+        "tmp/gsf12/tracksummary_gsf.root",
+        "tmp/gsf12/trackstates_gsf.root",
+    input:
+        "tmp/particles_initial.root",
+        "tmp/hits.root",
+    params:
+        components=12,
+        weight_cutoff=0.0001,
+    script:
+        "scripts/run_gsf.py"
+
+
+rule run_gsf_1cmp:
+    output:
+        "tmp/gsf1/tracksummary_gsf.root",
+        "tmp/gsf1/trackstates_gsf.root",
+    input:
+        "tmp/particles_initial.root",
+        "tmp/hits.root",
+    params:
+        components=1,
+        weight_cutoff=0.0001,
+    script:
+        "scripts/run_gsf.py"
+
+
+rule run_kf:
+    output:
+        "tmp/kf/tracksummary_kf.root",
+        "tmp/kf/trackstates_kf.root",
+    input:
+        "tmp/particles_initial.root",
+        "tmp/hits.root",
+    script:
+        "scripts/run_kf.py"
+
+rule all_residual_plot:
+    input:
+        "tmp/gsf12/tracksummary_gsf.root",
+        "tmp/kf/tracksummary_kf.root",
+    output:
+        "plots/all_residuals.pdf"
+    script:
+        "scripts/plot_all_residuals.py"
+
+rule detailed_perf_kf_vs_gsf12:
+    input:
+        "tmp/gsf12/tracksummary_gsf.root",
+        "tmp/kf/tracksummary_kf.root",
+    params:
+        suptitle="GSF (12 cmps) vs. KF",
+        config_a=("GSF", "tab:orange"),
+        config_b=("KF", "tab:blue"),
+    output:
+        "plots/gsf_vs_kf.pdf"
+    script:
+        "scripts/plot_detailed_perf.py"
+
+
+rule detailed_perf_gsf1_vs_gsf12:
+    input:
+        "tmp/gsf12/tracksummary_gsf.root",
+        "tmp/gsf1/tracksummary_gsf.root",
+    params:
+        suptitle="GSF (12 cmps) vs. GSF (1 cmp)",
+        config_a=("GSF (12)", "tab:orange"),
+        config_b=("GSF (1)", "tab:green"),
+    output:
+        "plots/gsf_vs_gsf.pdf"
+    script:
+        "scripts/plot_detailed_perf.py"
+
+
+rule all:
+    default_target: True
+    input:
+        "plots/all_residuals.pdf",
+        "plots/gsf_vs_kf.pdf",
+        "plots/gsf_vs_gsf.pdf",
