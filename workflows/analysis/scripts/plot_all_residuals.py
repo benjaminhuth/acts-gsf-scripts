@@ -35,8 +35,19 @@ summary_gsf, summary_kf = remove_outliers_and_unify_index(
 #     summary_gsf, "res_eQOP_fit", core_quantile
 # )
 
+clip_map = {
+    "d_0": (-5,5),
+    "z": (-10,10),
+    "\\varphi": (-0.2,0.2),
+    "\\theta": (-0.01,0.01),
+    "q/p": (-4,4),
+    "t": (-5000,5000),
+    "p": (-10,10),
+    "p norm": (-2,2)
+}
+
 fig, ax = make_full_residual_plot(
-    [summary_kf, summary_gsf], ["KF", "GSF"], clip_quantile=0.9995
+    [summary_kf, summary_gsf], ["KF", "GSF"], clip_map=clip_map
 )
 fig.set_size_inches(*figsize)
 fig.tight_layout()

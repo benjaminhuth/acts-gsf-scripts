@@ -185,9 +185,9 @@ def correlation_scatter_plot(summary, clip_res, do_printout=False):
     return fig, axes
 
 
-def make_full_residual_plot(dfs, labels, log=True, clip_std=None, clip_quantile=None):
+def make_full_residual_plot(dfs, labels, log=True, clip_std=None, clip_quantile=None, clip_map=None):
     assert len(dfs) == len(labels)
-    assert clip_std is None or clip_quantile is None
+    assert sum([ clip_std is None, clip_quantile is None, clip_map is None ]) >= 2
 
     fig, axes = plt.subplots(2, 4, figsize=(18, 5))
 
@@ -201,7 +201,7 @@ def make_full_residual_plot(dfs, labels, log=True, clip_std=None, clip_quantile=
         "res_eP_fit",
         "res_ePNORM_fit",
     ]
-    coor_names = ["d_0", "z", "\phi", "\\theta", "q/p", "t", "p", "p norm"]
+    coor_names = ["d_0", "z", "\\varphi", "\\theta", "q/p", "t", "p", "p norm"]
     units = ["mm", "mm", "rad", "rad", "GeV^{-1}", "ns", "GeV", ""]
 
     for ax, key, name, unit in zip(axes.flatten(), res_keys, coor_names, units):
@@ -217,6 +217,9 @@ def make_full_residual_plot(dfs, labels, log=True, clip_std=None, clip_quantile=
             lo = min(values[(values - m) > -q])
             hi = max(values[(values - m) < q])
             values = np.clip(values, lo, hi)
+
+        if clip_map is not None:
+            values = np.clip(values, *clip_map[name])
 
         _, bins = np.histogram(values, bins="rice")
 
@@ -234,6 +237,8 @@ def make_full_residual_plot(dfs, labels, log=True, clip_std=None, clip_quantile=
 
         if log:
             ax.set_yscale("log")
+
+        ax.vlines([0.0], *ax.get_ylim(), linestyles="dotted",color="black", linewidths=(1,))
 
         ax.set_title("${}$".format(name))
         ax.set_xlabel(

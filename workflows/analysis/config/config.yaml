@@ -1,6 +1,6 @@
 multiplicity: 1000
 particles_per_vertex: 1
-n_events: 100
+n_events: 1000
 p_min: 1
-p_max: 20 #100
+p_max: 100
 verbose: False

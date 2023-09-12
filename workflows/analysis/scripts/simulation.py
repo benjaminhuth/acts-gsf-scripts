@@ -27,12 +27,12 @@ s = acts.examples.Sequencer(
     numThreads=1,
     outputDir=str(outputDir),
     trackFpes=False,
-    logLevel=defaultLogLevel
+    logLevel=acts.logging.INFO,
 )
 
 
 realistic_stddev = acts.Vector4(0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns)
-momCfg  = MomentumConfig(snakemake.config["p_min"] * u.GeV, snakemake.config["p_max"] * u.GeV, transverse=False),
+momCfg  = MomentumConfig(snakemake.config["p_min"] * u.GeV, snakemake.config["p_max"] * u.GeV, transverse=True),
 etaCfg = EtaConfig(-3, 3),
 phiCfg = PhiConfig(0, 2 * math.pi),
 

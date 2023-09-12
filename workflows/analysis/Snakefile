@@ -86,6 +86,15 @@ rule detailed_perf_gsf1_vs_gsf12:
     script:
         "scripts/plot_detailed_perf.py"
 
+rule test:
+    input:
+        "tmp/gsf12/tracksummary_gsf.root",
+        "tmp/gsf1/tracksummary_gsf.root",
+    output:
+        "plot/pt_vs_eta.pdf"
+    script:
+        "scripts/plot_residuals_2d_hist.py"
+
 
 rule all:
     default_target: True
@@ -93,3 +102,4 @@ rule all:
         "plots/all_residuals.pdf",
         "plots/gsf_vs_kf.pdf",
         "plots/gsf_vs_gsf.pdf",
+        "plot/pt_vs_eta.pdf"
