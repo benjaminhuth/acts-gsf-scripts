@@ -848,7 +848,6 @@ class GsfKalmanPlotCombined(BaseProcessor):
                 ax.legend()
 
     def process_data(self):
-
         self.plot(
             [
                 np.vstack(self.kalman_parser.global_positions_forward),

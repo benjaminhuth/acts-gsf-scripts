@@ -10,10 +10,13 @@ from acts.examples.simulation import *
 from acts.examples.reconstruction import *
 from acts.examples.odd import getOpenDataDetector
 
+u = acts.UnitConstants
+
 oddDir = Path(os.environ["ODD_DIR"])
 assert oddDir.exists()
 
 defaultLogLevel = acts.logging.ERROR
+
 
 def setup():
     oddMaterialMap = oddDir / "data/odd-material-maps.root"
@@ -29,12 +32,21 @@ def setup():
     return detector, trackingGeometry, field, rnd
 
 
-def run_fitting(fitter, fitter_factory, fitter_options, snakemake):
-    outputDir = Path(snakemake.output[0]).parent
-    _, trackingGeometry, field, rnd = setup()
+def run_fitting(
+    fitter,
+    fitter_factory,
+    fitter_options,
+    outputDir,
+    inputParticles,
+    inputHits,
+    n_events=None,
+    seeding="truth_estimated",
+):
+    assert seeding in ["truth_estimated", "smeared"]
+    detector, trackingGeometry, field, rnd = setup()
 
     s = acts.examples.Sequencer(
-        events=snakemake.config["n_events"],
+        events=n_events,
         numThreads=-1,
         outputDir=outputDir,
         trackFpes=False,
@@ -44,15 +56,15 @@ def run_fitting(fitter, fitter_factory, fitter_options, snakemake):
     s.addReader(
         acts.examples.RootParticleReader(
             level=defaultLogLevel,
-            particleCollection="particles_selected",
-            filePath=snakemake.input[0],
+            particleCollection="particles_initial",
+            filePath=inputParticles,
         )
     )
 
     s.addReader(
         acts.examples.RootSimHitReader(
             level=defaultLogLevel,
-            filePath=snakemake.input[1],
+            filePath=inputHits,
             simHitCollection="simhits",
         )
     )
@@ -66,33 +78,83 @@ def run_fitting(fitter, fitter_factory, fitter_options, snakemake):
         rnd=rnd,
         logLevel=defaultLogLevel,
         digiConfigFile=digiConfigFile,
+        outputDirCsv=outputDir / "csv",
     )
-
-    seedingSel = oddDir / "config/odd-seeding-config.json"
-
-    addSeeding(
+    
+    addSeedingTruthSelection(
         s,
-        trackingGeometry,
-        field,
-        seedingAlgorithm=SeedingAlgorithm.TruthEstimated,
-        truthEstimatedSeedingAlgorithmConfigArg=TruthEstimatedSeedingAlgorithmConfigArg(
-            deltaR=(0.0, np.inf)
-        ),
-        truthSeedRanges=TruthSeedRanges(rho=(0.0, 1.0), nHits=(3, None)),
-        initialVarInflation=6 * [100],
-        geoSelectionConfigFile=seedingSel,
-        inputParticles="particles_selected",
+        "particles_initial",
+        "particles_initial_selected",
+        truthSeedRanges=TruthSeedRanges(rho=(0,2*u.mm), nHits=(3,None)),
         logLevel=defaultLogLevel,
     )
+    
+    seedingSel = oddDir / "config/odd-seeding-config.json"
 
-    s.addAlgorithm(
-        acts.examples.TruthTrackFinder(
-            level=defaultLogLevel,
-            inputParticles="truth_seeded_particles",
-            inputMeasurementParticlesMap="measurement_particles_map",
-            outputProtoTracks="prototracks",
+    if seeding == "truth_estimated":
+        spacePoints = addSpacePointsMaking(
+            s,
+            trackingGeometry,
+            seedingSel,
+            logLevel=defaultLogLevel,
         )
-    )
+        
+        s.addAlgorithm(
+            acts.examples.TruthSeedingAlgorithm(
+                level=defaultLogLevel,
+                inputParticles="particles_initial_selected",
+                inputMeasurementParticlesMap="measurement_particles_map",
+                inputSpacePoints=[spacePoints],
+                outputParticles="truth_seeded_particles",
+                outputProtoTracks="truth_particle_tracks",
+                outputSeeds="seeds",
+            )
+        )
+            
+        s.addAlgorithm(
+            acts.examples.TruthTrackFinder(
+                level=defaultLogLevel,
+                inputParticles="truth_seeded_particles",
+                inputMeasurementParticlesMap="measurement_particles_map",
+                outputProtoTracks="prototracks",
+            )
+        )
+
+        s.addAlgorithm(
+            acts.examples.TrackParamsEstimationAlgorithm(
+                level=defaultLogLevel,
+                inputSeeds="truth_seeds",
+                inputProtoTracks="prototracks",
+                outputTrackParameters="track_parameters",
+                outputProtoTracks="prototracks_with_params",
+                trackingGeometry=trackingGeometry,
+                magneticField=field,
+                initialVarInflation=[100.0] * 6,
+            )
+        )
+    elif seeding == "smeared":
+        s.addAlgorithm(
+            acts.examples.ParticleSmearing(
+                level=defaultLogLevel,
+                randomNumbers=rnd,
+                inputParticles="particles_initial_selected",
+                outputTrackParameters="track_parameters",
+                initialVarInflation=[100.0] * 6,
+            )
+        )
+
+        s.addAlgorithm(
+            acts.examples.TruthTrackFinder(
+                level=defaultLogLevel,
+                inputParticles="particles_initial_selected",
+                inputMeasurementParticlesMap="measurement_particles_map",
+                outputProtoTracks="prototracks_with_params",
+            )
+        )
+            
+        s.addWhiteboardAlias("truth_seeded_particles", "particles_initial_selected")
+    else:
+        raise ValueError(f"invalid seeding config '{seeding}'")
 
     trajectories = "trajectories_" + fitter
     tracks = "tracks_" + fitter
@@ -104,8 +166,8 @@ def run_fitting(fitter, fitter_factory, fitter_options, snakemake):
             level=defaultLogLevel,
             inputMeasurements="measurements",
             inputSourceLinks="sourcelinks",
-            inputProtoTracks="prototracks",
-            inputInitialTrackParameters="estimatedparameters",
+            inputProtoTracks="prototracks_with_params",
+            inputInitialTrackParameters="track_parameters",
             outputTracks=tracks,
             calibrator=acts.examples.makePassThroughCalibrator(),
             fit=function,

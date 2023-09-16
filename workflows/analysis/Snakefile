@@ -3,57 +3,85 @@ configfile: "config/config.yaml"
 envvars:
     "ODD_DIR",
 
+SEEDING_DICT = {
+    "1GeV_to_100GeV": "truth_estimated",
+    "4GeV": "smeared",
+}
 
 rule simulated_particles:
     output:
-        "tmp/particles_initial.root",
-        "tmp/hits.root",
+        "tmp/1GeV_to_100GeV/particles.root",
+        "tmp/1GeV_to_100GeV/hits.root",
+    params:
+        n_events=1000,
+        p_min=1,
+        p_max=100,
+        p_transverse=True,
+        uniform_eta=True,
+    script:
+        "scripts/simulation.py"
+        
+    
+rule simulated_particles_4GeV:
+    output:
+        "tmp/4GeV/hits.root",
+        "tmp/4GeV/particles.root",
+    params:
+        n_events=50,
+        p_min=4,
+        p_max=4,
+        p_transverse=False,
+        uniform_eta=False,
     script:
         "scripts/simulation.py"
 
 
 rule run_gsf_12cmps:
     output:
-        "tmp/gsf12/tracksummary_gsf.root",
-        "tmp/gsf12/trackstates_gsf.root",
+        "tmp/{dataset}/gsf12/tracksummary_gsf.root",
+        "tmp/{dataset}/gsf12/trackstates_gsf.root",
     input:
-        "tmp/particles_initial.root",
-        "tmp/hits.root",
+        "tmp/{dataset}/particles.root",
+        "tmp/{dataset}/hits.root",
     params:
         components=12,
         weight_cutoff=0.0001,
+        seeding=lambda wildcards: SEEDING_DICT[wildcards.dataset],
     script:
         "scripts/run_gsf.py"
 
 
 rule run_gsf_1cmp:
     output:
-        "tmp/gsf1/tracksummary_gsf.root",
-        "tmp/gsf1/trackstates_gsf.root",
+        "tmp/{dataset}/gsf1/tracksummary_gsf.root",
+        "tmp/{dataset}/gsf1/trackstates_gsf.root",
     input:
-        "tmp/particles_initial.root",
-        "tmp/hits.root",
+        "tmp/{dataset}/particles.root",
+        "tmp/{dataset}/hits.root",
     params:
         components=1,
         weight_cutoff=0.0001,
+        seeding=lambda wildcards: SEEDING_DICT[wildcards.dataset],
     script:
         "scripts/run_gsf.py"
 
 
 rule run_kf:
     output:
-        "tmp/kf/tracksummary_kf.root",
-        "tmp/kf/trackstates_kf.root",
+        "tmp/{dataset}/kf/tracksummary_kf.root",
+        "tmp/{dataset}/kf/trackstates_kf.root",
     input:
-        "tmp/particles_initial.root",
-        "tmp/hits.root",
+        "tmp/{dataset}/particles.root",
+        "tmp/{dataset}/hits.root",
+    params:
+        seeding=lambda wildcards: SEEDING_DICT[wildcards.dataset],
     script:
         "scripts/run_kf.py"
 
 rule all_residual_plot:
     input:
-        "tmp/gsf12/tracksummary_gsf.root",
-        "tmp/kf/tracksummary_kf.root",
+        "tmp/1GeV_to_100GeV/gsf12/tracksummary_gsf.root",
+        "tmp/1GeV_to_100GeV/kf/tracksummary_kf.root",
     output:
         "plots/all_residuals.pdf"
     script:
@@ -61,8 +89,8 @@ rule all_residual_plot:
 
 rule detailed_perf_kf_vs_gsf12:
     input:
-        "tmp/gsf12/tracksummary_gsf.root",
-        "tmp/kf/tracksummary_kf.root",
+        "tmp/1GeV_to_100GeV/gsf12/tracksummary_gsf.root",
+        "tmp/1GeV_to_100GeV/kf/tracksummary_kf.root",
     params:
         suptitle="GSF (12 cmps) vs. KF",
         config_a=("GSF", "tab:orange"),
@@ -75,8 +103,8 @@ rule detailed_perf_kf_vs_gsf12:
 
 rule detailed_perf_gsf1_vs_gsf12:
     input:
-        "tmp/gsf12/tracksummary_gsf.root",
-        "tmp/gsf1/tracksummary_gsf.root",
+        "tmp/1GeV_to_100GeV/gsf12/tracksummary_gsf.root",
+        "tmp/1GeV_to_100GeV/gsf1/tracksummary_gsf.root",
     params:
         suptitle="GSF (12 cmps) vs. GSF (1 cmp)",
         config_a=("GSF (12)", "tab:orange"),
@@ -86,15 +114,49 @@ rule detailed_perf_gsf1_vs_gsf12:
     script:
         "scripts/plot_detailed_perf.py"
 
-rule test:
+rule histograms_eta_pt:
     input:
-        "tmp/gsf12/tracksummary_gsf.root",
-        "tmp/gsf1/tracksummary_gsf.root",
+        "tmp/1GeV_to_100GeV/gsf12/tracksummary_gsf.root",
+        "tmp/1GeV_to_100GeV/gsf1/tracksummary_gsf.root",
     output:
-        "plot/pt_vs_eta.pdf"
+        "plots/res_vs_eta_pt.pdf"
     script:
         "scripts/plot_residuals_2d_hist.py"
 
+
+rule sweep_components_weight_cutoff:
+    input:
+        "tmp/1GeV_to_100GeV/particles.root",
+        "tmp/1GeV_to_100GeV/hits.root",
+    output:
+        "tmp/sweep_results.csv"
+    params:
+        n_events=10,
+        filter_outliers=False,
+        core_quantile=0.95,
+    script:
+        "scripts/parameters_sweep.py"
+        
+rule plot_sweep:
+    input:
+        "tmp/sweep_results.csv",
+    output:
+        "plots/sweep_components.pdf",
+        "plots/swepp_weight_cutoff.pdf"
+    script:
+        "scripts/plot_sweep.py"
+        
+rule plot_eloss_correlation:
+    input:
+        "tmp/4GeV/gsf12/tracksummary_gsf.root",
+        "tmp/4GeV/gsf12/trackstates_gsf.root",
+        "tmp/4GeV/kf/tracksummary_kf.root",
+        "tmp/4GeV/kf/trackstates_kf.root",
+    output:
+        "plots/correlation_res_total_eloss.pdf",
+        "plots/correlation_res_eloss_first_surface.pdf",
+    script:
+        "scripts/plot_eloss_correlation.py"
 
 rule all:
     default_target: True
@@ -102,4 +164,8 @@ rule all:
         "plots/all_residuals.pdf",
         "plots/gsf_vs_kf.pdf",
         "plots/gsf_vs_gsf.pdf",
-        "plot/pt_vs_eta.pdf"
+        "plots/res_vs_eta_pt.pdf",
+        "plots/sweep_components.pdf",
+        "plots/swepp_weight_cutoff.pdf",
+        "plots/correlation_res_total_eloss.pdf",
+        "plots/correlation_res_eloss_first_surface.pdf",

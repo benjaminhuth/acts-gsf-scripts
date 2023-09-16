@@ -11,6 +11,7 @@ def make_gsf_detailed_comparison_plots(
     """
     A set is a tuple (df, label, color-string)
     """
+
     # TODO make assymetric
     def quantile_interval(data, q, midpoint=0):
         sorted_data = np.sort(data - midpoint)

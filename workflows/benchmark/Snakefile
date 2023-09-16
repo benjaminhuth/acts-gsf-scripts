@@ -4,6 +4,7 @@ envvars:
     "ODD_DIR",
     "ACTS_INSTALL_DIR",
     "ACTS_SRC_DIR",
+    "ACTS_SEQUENCER_DISABLE_FPEMON",
 
 rule simulated_particles:
     output:

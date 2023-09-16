@@ -13,5 +13,13 @@ kalmanOptions = {
     "level": acts.logging.INFO,
 }
 
-run_fitting("kf", acts.examples.makeKalmanFitterFunction, kalmanOptions, snakemake)
-
+outputDir = Path(snakemake.output[0]).parent
+run_fitting(
+    "kf",
+    acts.examples.makeKalmanFitterFunction,
+    kalmanOptions,
+    outputDir,
+    snakemake.input[0],
+    snakemake.input[1],
+    seeding=snakemake.params["seeding"],
+)

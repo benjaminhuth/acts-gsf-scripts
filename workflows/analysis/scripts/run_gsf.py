@@ -23,5 +23,13 @@ gsfOptions = {
     "level": acts.logging.ERROR,
 }
 
-run_fitting("gsf", acts.examples.makeGsfFitterFunction, gsfOptions, snakemake)
-
+outputDir = Path(snakemake.output[0]).parent
+run_fitting(
+    "gsf",
+    acts.examples.makeGsfFitterFunction,
+    gsfOptions,
+    outputDir,
+    snakemake.input[0],
+    snakemake.input[1],
+    seeding=snakemake.params["seeding"],
+)

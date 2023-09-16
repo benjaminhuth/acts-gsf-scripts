@@ -116,7 +116,6 @@ def ratio_residual_plot(summary_gsf, summary_kf, log_scale=False, bins=200):
 
 
 def correlation_scatter_plot(summary, clip_res, do_printout=False):
-
     keys = [
         "chi2Sum",
         "t_theta",
@@ -185,11 +184,20 @@ def correlation_scatter_plot(summary, clip_res, do_printout=False):
     return fig, axes
 
 
-def make_full_residual_plot(dfs, labels, log=True, clip_std=None, clip_quantile=None, clip_map=None):
+def make_full_residual_plot(
+    dfs,
+    labels,
+    log=True,
+    clip_std=None,
+    clip_quantile=None,
+    clip_map=None,
+    p_pnorm=True,
+):
     assert len(dfs) == len(labels)
-    assert sum([ clip_std is None, clip_quantile is None, clip_map is None ]) >= 2
+    assert sum([clip_std is None, clip_quantile is None, clip_map is None]) >= 2
 
-    fig, axes = plt.subplots(2, 4, figsize=(18, 5))
+    cols = 4 if p_pnorm else 3
+    fig, axes = plt.subplots(2, cols, figsize=(18, 5))
 
     res_keys = [
         "res_eLOC0_fit",
@@ -198,11 +206,14 @@ def make_full_residual_plot(dfs, labels, log=True, clip_std=None, clip_quantile=
         "res_eTHETA_fit",
         "res_eQOP_fit",
         "res_eT_fit",
-        "res_eP_fit",
-        "res_ePNORM_fit",
     ]
-    coor_names = ["d_0", "z", "\\varphi", "\\theta", "q/p", "t", "p", "p norm"]
-    units = ["mm", "mm", "rad", "rad", "GeV^{-1}", "ns", "GeV", ""]
+    coor_names = ["d_0", "z", "\\varphi", "\\theta", "q/p", "t"]
+    units = ["mm", "mm", "rad", "rad", "GeV^{-1}", "ns"]
+
+    if p_pnorm:
+        res_keys += ["res_eP_fit", "res_ePNORM_fit"]
+        coor_names += ["p", "p norm"]
+        units += ["GeV", ""]
 
     for ax, key, name, unit in zip(axes.flatten(), res_keys, coor_names, units):
         values = np.concatenate([df[key] for df in dfs])
@@ -238,7 +249,9 @@ def make_full_residual_plot(dfs, labels, log=True, clip_std=None, clip_quantile=
         if log:
             ax.set_yscale("log")
 
-        ax.vlines([0.0], *ax.get_ylim(), linestyles="dotted",color="black", linewidths=(1,))
+        ax.vlines(
+            [0.0], *ax.get_ylim(), linestyles="dotted", color="black", linewidths=(1,)
+        )
 
         ax.set_title("${}$".format(name))
         ax.set_xlabel(

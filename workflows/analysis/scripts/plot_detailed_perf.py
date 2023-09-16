@@ -23,9 +23,7 @@ summary_b = uproot_to_pandas(
     uproot.open(snakemake.input[1] + ":tracksummary"),
 )
 
-summary_a, summary_b = remove_outliers_and_unify_index(
-    summary_a, summary_b
-)
+summary_a, summary_b = remove_outliers_and_unify_index(summary_a, summary_b)
 
 
 name_a, color_a = snakemake.params["config_a"]
@@ -36,9 +34,7 @@ gsf_vs_kf = [
     (summary_b, name_b, color_b),
 ]
 
-fig, ax = make_gsf_detailed_comparison_plots(
-    gsf_vs_kf, assymetric_interval=True
-)
+fig, ax = make_gsf_detailed_comparison_plots(gsf_vs_kf, assymetric_interval=True)
 fig.suptitle(snakemake.params["suptitle"])
 fig.tight_layout()
 fig.savefig(snakemake.output[0])
