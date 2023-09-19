@@ -19,14 +19,14 @@ summary_gsf, summary_kf = remove_outliers_and_unify_index(
 )
 
 
-# from gsfanalysis.tracksummary_plots import *
-#
-# for summary, name in zip(
-#     [summary_gsf, summary_kf], ["GSF", "KF"]
-# ):
-#     fig, ax = correlation_scatter_plot(summary, clip_res=(-8, 8))
-#     fig.suptitle(f"Correlation plots {name}")
-#     fig.tight_layout()
+from gsfanalysis.tracksummary_plots import *
+
+for summary, name in zip(
+    [summary_gsf, summary_kf], ["GSF", "KF"]
+):
+    fig, ax = correlation_scatter_plot(summary, clip_res=(-8, 8))
+    fig.suptitle(f"Correlation plots {name}")
+    fig.tight_layout()
 
 gsf_cmap = LinearSegmentedColormap.from_list(
     "gsf", [to_rgba("tab:orange", alpha=0), to_rgba("tab:orange", alpha=1)]
@@ -43,17 +43,20 @@ def plot(x_lambda, y_lambda, mask_lambda):
     sgsf = summary_gsf[mask_lambda(summary_gsf)]
     skf = summary_kf[mask_lambda(summary_kf)]
 
-    # gsf_plot = axes[0].hist2d(
-    #     x_lambda(sgsf), y_lambda(sgsf), bins, norm=LogNorm(), cmap=gsf_cmap
-    # )
-    # fig.colorbar(gsf_plot[3])
-    axes[0].scatter(x_lambda(sgsf), y_lambda(sgsf), color="tab:orange")
+    if True:
+        gsf_plot = axes[0].hist2d(
+            x_lambda(sgsf), y_lambda(sgsf), bins, norm=LogNorm(), cmap=gsf_cmap
+        )
+        fig.colorbar(gsf_plot[3])
 
-    # kf_plot = axes[1].hist2d(
-    #     x_lambda(skf), y_lambda(skf), bins, norm=LogNorm(), cmap=kf_cmap
-    # )
-    # fig.colorbar(kf_plot[3])
-    axes[1].scatter(x_lambda(skf), y_lambda(skf), color="tab:blue")
+        kf_plot = axes[1].hist2d(
+            x_lambda(skf), y_lambda(skf), bins, norm=LogNorm(), cmap=kf_cmap
+        )
+        fig.colorbar(kf_plot[3])
+    else:
+        axes[0].scatter(x_lambda(sgsf), y_lambda(sgsf), color="tab:orange")
+
+        axes[1].scatter(x_lambda(skf), y_lambda(skf), color="tab:blue")
 
     axes[1].set_title("KF")
     axes[0].set_title("GSF")

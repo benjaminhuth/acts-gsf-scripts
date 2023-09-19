@@ -3,4 +3,4 @@ particles_per_vertex: 1
 verbose: False
 sim_jobs: 10
 
-plt_show: False
+plt_show: True

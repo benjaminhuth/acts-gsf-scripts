@@ -108,24 +108,24 @@ class GsfEnvironment:
         #######################
         # Setup Geant4 config #
         #######################
-        if not args["fatras"]:
-            from acts.examples.geant4 import makeGeant4SimulationConfig
-
-            self.g4detectorConstruction = getG4DetectorContruction(self.detector)
-
-            self.g4conf = makeGeant4SimulationConfig(
-                level=self.defaultLogLevel,
-                detector=self.g4detectorConstruction,
-                randomNumbers=self.rnd,
-                inputParticles="particles_input",
-                trackingGeometry=self.trackingGeometry,
-                magneticField=self.field,
-                # volumeMappings=,
-                # materialMappings=,
-            )
-            self.g4conf.outputSimHits = "simhits"
-            self.g4conf.outputParticlesInitial = "particles_initial"
-            self.g4conf.outputParticlesFinal = "particles_final"
+        # if not args["fatras"]:
+        #     from acts.examples.geant4 import makeGeant4SimulationConfig
+        #
+        #     self.g4detectorConstruction = getG4DetectorContruction(self.detector)
+        #
+        #     self.g4conf = makeGeant4SimulationConfig(
+        #         level=self.defaultLogLevel,
+        #         detector=self.g4detectorConstruction,
+        #         randomNumbers=self.rnd,
+        #         inputParticles="particles_input",
+        #         trackingGeometry=self.trackingGeometry,
+        #         magneticField=self.field,
+        #         # volumeMappings=,
+        #         # materialMappings=,
+        #     )
+        #     self.g4conf.outputSimHits = "simhits"
+        #     self.g4conf.outputParticlesInitial = "particles_initial"
+        #     self.g4conf.outputParticlesFinal = "particles_final"
 
     def run_sequencer(self, s, outputDir: Path):
         u = acts.UnitConstants
@@ -161,18 +161,19 @@ class GsfEnvironment:
             ),
             multiplicity=self.args["particles"],
             logLevel=self.defaultLogLevel,
+            outputDirRoot=outputDir,
         )
 
         if not self.args["fatras"]:
-            from acts.examples.geant4 import Geant4Simulation
-
-            s.addAlgorithm(
-                Geant4Simulation(
-                    level=self.defaultLogLevel,
-                    config=self.g4conf,
-                )
+            addGeant4(
+                s,
+                self.detector,
+                self.trackingGeometry,
+                self.field,
+                self.rnd,
+                logLevel=self.defaultLogLevel,
+                outputDirRoot=outputDir,
             )
-
         else:
             addFatras(
                 s,
@@ -184,6 +185,23 @@ class GsfEnvironment:
                 postSelectParticles=None,
                 enableInteractions=not self.args["disable_fatras_interactions"],
             )
+
+
+        # s.addReader(
+        #     acts.examples.RootParticleReader(
+        #         level=self.defaultLogLevel,
+        #         particleCollection="particles_initial",
+        #         filePath=outputDir/"particles_initial.root",
+        #     )
+        # )
+        #
+        # s.addReader(
+        #     acts.examples.RootSimHitReader(
+        #         level=self.defaultLogLevel,
+        #         filePath=outputDir/"hits.root",
+        #         simHitCollection="simhits",
+        #     )
+        # )
 
         addParticleSelection(
             s,

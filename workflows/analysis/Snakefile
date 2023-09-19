@@ -27,7 +27,7 @@ rule simulated_particles_4GeV:
         "tmp/4GeV/hits.root",
         "tmp/4GeV/particles.root",
     params:
-        n_events=50,
+        n_events=1,#n_events=10,
         p_min=4,
         p_max=4,
         p_transverse=False,

@@ -15,12 +15,19 @@ u = acts.UnitConstants
 oddDir = Path(os.environ["ODD_DIR"])
 assert oddDir.exists()
 
-defaultLogLevel = acts.logging.ERROR
+defaultLogLevel = acts.logging.INFO
+
+seedingSel = oddDir / "config/odd-seeding-config.json"
+assert seedingSel.exists()
+
+digiConfigFile = oddDir / "config/odd-digi-smearing-config.json"
+assert digiConfigFile.exists()
+
+oddMaterialMap = oddDir / "data/odd-material-maps.root"
+assert oddMaterialMap.exists()
 
 
 def setup():
-    oddMaterialMap = oddDir / "data/odd-material-maps.root"
-
     oddMaterialDeco = acts.IMaterialDecorator.fromFile(oddMaterialMap)
     detector, trackingGeometry, decorators = getOpenDataDetector(
         oddDir, mdecorator=oddMaterialDeco, logLevel=defaultLogLevel
@@ -69,8 +76,6 @@ def run_fitting(
         )
     )
 
-    digiConfigFile = oddDir / "config/odd-digi-smearing-config.json"
-
     addDigitization(
         s=s,
         trackingGeometry=trackingGeometry,
@@ -78,9 +83,9 @@ def run_fitting(
         rnd=rnd,
         logLevel=defaultLogLevel,
         digiConfigFile=digiConfigFile,
-        outputDirCsv=outputDir / "csv",
+        # outputDirCsv=outputDir / "csv",
     )
-    
+
     addSeedingTruthSelection(
         s,
         "particles_initial",
@@ -88,8 +93,7 @@ def run_fitting(
         truthSeedRanges=TruthSeedRanges(rho=(0,2*u.mm), nHits=(3,None)),
         logLevel=defaultLogLevel,
     )
-    
-    seedingSel = oddDir / "config/odd-seeding-config.json"
+
 
     if seeding == "truth_estimated":
         spacePoints = addSpacePointsMaking(
@@ -98,7 +102,7 @@ def run_fitting(
             seedingSel,
             logLevel=defaultLogLevel,
         )
-        
+
         s.addAlgorithm(
             acts.examples.TruthSeedingAlgorithm(
                 level=defaultLogLevel,
@@ -110,7 +114,7 @@ def run_fitting(
                 outputSeeds="seeds",
             )
         )
-            
+
         s.addAlgorithm(
             acts.examples.TruthTrackFinder(
                 level=defaultLogLevel,
@@ -151,11 +155,10 @@ def run_fitting(
                 outputProtoTracks="prototracks_with_params",
             )
         )
-            
+
         s.addWhiteboardAlias("truth_seeded_particles", "particles_initial_selected")
     else:
         raise ValueError(f"invalid seeding config '{seeding}'")
-
     trajectories = "trajectories_" + fitter
     tracks = "tracks_" + fitter
 
