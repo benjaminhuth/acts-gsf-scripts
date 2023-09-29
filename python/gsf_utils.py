@@ -186,7 +186,6 @@ class GsfEnvironment:
                 enableInteractions=not self.args["disable_fatras_interactions"],
             )
 
-
         # s.addReader(
         #     acts.examples.RootParticleReader(
         #         level=self.defaultLogLevel,

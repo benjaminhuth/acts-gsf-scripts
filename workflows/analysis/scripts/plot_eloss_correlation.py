@@ -19,7 +19,7 @@ summary_gsf, summary_kf = remove_outliers_and_unify_index(
 )
 
 # from gsfanalysis.tracksummary_plots import *
-# 
+#
 # for summary, name in zip(
 #     [summary_gsf, summary_kf], ["GSF", "KF"]
 # ):
@@ -37,7 +37,7 @@ bins = [50, 50]
 
 
 def plot(x_lambda, y_lambda, mask_lambda):
-    fig, axes = plt.subplots(1, 2, figsize=(12,4))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
 
     sgsf = summary_gsf[mask_lambda(summary_gsf)]
     skf = summary_kf[mask_lambda(summary_kf)]
@@ -80,8 +80,8 @@ fig.suptitle("$\Delta E$ vs. $res_p$")
 
 for ax in axes:
     ax.set_ylabel("$\Delta E \quad [GeV]$")
-    ax.set_xlim(-3,3)
-    ax.set_ylim(-4.1,0)
+    ax.set_xlim(-3, 3)
+    ax.set_ylim(-4.1, 0)
 
 fig.tight_layout()
 fig.savefig(snakemake.output[0])
@@ -100,8 +100,8 @@ fig2.suptitle("$\Delta E$ on first surface vs. $res_p$")
 
 for ax in axes2:
     ax.set_ylabel("$\Delta E$ (after first surface) $\quad [GeV]$")
-    ax.set_xlim(-2,2)
-    ax.set_ylim(-2.1,0)
+    ax.set_xlim(-2, 2)
+    ax.set_ylim(-2.1, 0)
 
 fig2.tight_layout()
 fig2.savefig(snakemake.output[1])

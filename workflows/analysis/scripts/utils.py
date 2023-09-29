@@ -90,10 +90,9 @@ def run_fitting(
         s,
         "particles_initial",
         "particles_initial_selected",
-        truthSeedRanges=TruthSeedRanges(rho=(0,2*u.mm), nHits=(3,None)),
+        truthSeedRanges=TruthSeedRanges(rho=(0, 2 * u.mm), nHits=(3, None)),
         logLevel=defaultLogLevel,
     )
-
 
     if seeding == "truth_estimated":
         spacePoints = addSpacePointsMaking(

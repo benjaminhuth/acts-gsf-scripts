@@ -31,7 +31,7 @@ high_bhapprox = gsf_data_dir / "GeantSim_GT01_cdf_nC6_O5.par"
 eMaxWeight = int(acts.examples.FinalReductionMethod.maxWeight)
 eMean = int(acts.examples.FinalReductionMethod.mean)
 
-    
+
 def run_configuration(pars):
     components, weight_cutoff, finalReductionMethod = pars
     print("-> cmps: {}, wc: {}".format(components, weight_cutoff))
@@ -44,7 +44,9 @@ def run_configuration(pars):
             str(low_bhapprox),
             str(high_bhapprox),
         ),
-        "finalReductionMethod": acts.examples.FinalReductionMethod(finalReductionMethod),
+        "finalReductionMethod": acts.examples.FinalReductionMethod(
+            finalReductionMethod
+        ),
         "weightCutoff": weight_cutoff,
         "level": acts.logging.ERROR,
     }
@@ -131,25 +133,21 @@ def run_configuration(pars):
     return iteration_df
 
 
-
-
-
-
 pars = []
 
 components = [1, 2, 4, 8, 12, 16, 20, 24, 28, 32]
 print("Sweep components:", components)
 for c in components:
-    pars.append((c, 1.e-6, eMaxWeight))
+    pars.append((c, 1.0e-6, eMaxWeight))
 
 # 1.e-6 already covered above
-weight_cutoff = [1.0e-8, 1.0e-4, 1.0e-2, 1.e-1]
+weight_cutoff = [1.0e-8, 1.0e-4, 1.0e-2, 1.0e-1]
 print("Sweep weight cutoffs:", weight_cutoff)
 for w in weight_cutoff:
     pars.append((12, w, eMaxWeight))
 
 # TODO add mode
-pars.append((12, 1.e-6, eMean))
+pars.append((12, 1.0e-6, eMean))
 
 print("Grid size:", len(pars))
 

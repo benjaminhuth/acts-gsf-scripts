@@ -4,7 +4,7 @@ import numpy as np
 import uproot
 
 
-def uproot_to_pandas(summary, states = None):
+def uproot_to_pandas(summary, states=None):
     exclude_from_summary_keys = [
         "measurementChi2",
         "outlierChi2",
@@ -21,7 +21,9 @@ def uproot_to_pandas(summary, states = None):
         .drop(["entry", "subTraj_nr", "subentry"], axis=1)
     )  # .set_index(["event_nr", "multiTraj_nr"])
 
-    summary_df = summary_df.sort_values("event_nr", kind="stable").reset_index(drop=True).copy()
+    summary_df = (
+        summary_df.sort_values("event_nr", kind="stable").reset_index(drop=True).copy()
+    )
 
     summary_df["res_eP_fit"] = summary_df["t_p"] - abs(1.0 / summary_df["eQOP_fit"])
     summary_df["res_ePNORM_fit"] = summary_df["res_eP_fit"] / summary_df["t_p"]
@@ -38,7 +40,9 @@ def uproot_to_pandas(summary, states = None):
         .rename({"subentry": "trackState_nr"}, axis=1)
     )  # .set_index(["event_nr","multiTraj_nr","trackState_nr"])
 
-    states_df = states_df.sort_values("event_nr", kind="stable").reset_index(drop=True).copy()
+    states_df = (
+        states_df.sort_values("event_nr", kind="stable").reset_index(drop=True).copy()
+    )
 
     summary_df["p_fit"] = abs(1.0 / summary_df["eQOP_fit"])
     summary_df["res_p_fit"] = summary_df["p_fit"] - summary_df["t_p"]
