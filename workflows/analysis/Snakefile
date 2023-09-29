@@ -27,7 +27,7 @@ rule simulated_particles_4GeV:
         "tmp/4GeV/hits.root",
         "tmp/4GeV/particles.root",
     params:
-        n_events=1,#n_events=10,
+        n_events=20,
         p_min=4,
         p_max=4,
         p_transverse=False,
@@ -142,7 +142,8 @@ rule plot_sweep:
         "tmp/sweep_results.csv",
     output:
         "plots/sweep_components.pdf",
-        "plots/swepp_weight_cutoff.pdf"
+        "plots/sweep_weight_cutoff.pdf",
+        "plots/sweep_reduction_method.pdf"
     script:
         "scripts/plot_sweep.py"
         
@@ -157,6 +158,15 @@ rule plot_eloss_correlation:
         "plots/correlation_res_eloss_first_surface.pdf",
     script:
         "scripts/plot_eloss_correlation.py"
+        
+rule plot_outlier_fit_failures:
+    input:
+        "tmp/1GeV_to_100GeV/particles.root",
+        "tmp/1GeV_to_100GeV/gsf12/tracksummary_gsf.root",
+    output:
+        "plots/outliers_fit_failures.pdf",
+    script:
+        "scripts/plot_fit_failures_outlier.py"
 
 rule all:
     default_target: True
@@ -166,6 +176,7 @@ rule all:
         "plots/gsf_vs_gsf.pdf",
         "plots/res_vs_eta_pt.pdf",
         "plots/sweep_components.pdf",
-        "plots/swepp_weight_cutoff.pdf",
+        "plots/sweep_weight_cutoff.pdf",
         "plots/correlation_res_total_eloss.pdf",
         "plots/correlation_res_eloss_first_surface.pdf",
+#         "plots/outliers_fit_failures.pdf",

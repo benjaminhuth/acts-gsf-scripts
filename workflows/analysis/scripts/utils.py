@@ -15,7 +15,7 @@ u = acts.UnitConstants
 oddDir = Path(os.environ["ODD_DIR"])
 assert oddDir.exists()
 
-defaultLogLevel = acts.logging.INFO
+defaultLogLevel = acts.logging.ERROR
 
 seedingSel = oddDir / "config/odd-seeding-config.json"
 assert seedingSel.exists()
@@ -110,7 +110,7 @@ def run_fitting(
                 inputMeasurementParticlesMap="measurement_particles_map",
                 inputSpacePoints=[spacePoints],
                 outputParticles="truth_seeded_particles",
-                outputProtoTracks="truth_particle_tracks",
+                outputProtoTracks="truth_seeded_prototracks",
                 outputSeeds="seeds",
             )
         )
@@ -127,13 +127,14 @@ def run_fitting(
         s.addAlgorithm(
             acts.examples.TrackParamsEstimationAlgorithm(
                 level=defaultLogLevel,
-                inputSeeds="truth_seeds",
+                inputSeeds="seeds",
                 inputProtoTracks="prototracks",
                 outputTrackParameters="track_parameters",
                 outputProtoTracks="prototracks_with_params",
                 trackingGeometry=trackingGeometry,
                 magneticField=field,
                 initialVarInflation=[100.0] * 6,
+                particleHypothesis=acts.ParticleHypothesis.electron,
             )
         )
     elif seeding == "smeared":
@@ -144,6 +145,7 @@ def run_fitting(
                 inputParticles="particles_initial_selected",
                 outputTrackParameters="track_parameters",
                 initialVarInflation=[100.0] * 6,
+                particleHypothesis=acts.ParticleHypothesis.electron,
             )
         )
 

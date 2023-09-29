@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from scipy.interpolate import make_interp_spline
 
 
@@ -15,6 +16,14 @@ def parallel_coordinates(
     figsize=None,
 ):
     fig, lax = plt.subplots(figsize=figsize)
+
+    ticklabels = {}
+
+    for col in df.columns:
+        if (df.dtypes[col] == str) or (df.dtypes[col] == object):
+            assert not col in log_columns
+            ticklabels[col] = list(df[col])
+            df[col] = np.linspace(0, 1, len(df[col])).astype(float)
 
     if error_df is not None:
         for col in df.columns:
@@ -42,8 +51,10 @@ def parallel_coordinates(
                     else np.zeros(len(df))
                 )
             )
-
-            if col in log_columns:
+            if self.max == self.min:
+                self.min -= 0.1 * abs(self.min)
+                self.max += 0.1 * abs(self.max)
+            elif col in log_columns:
                 assert self.min > 0
                 assert self.max > 0
                 self.min /= 10
@@ -51,6 +62,8 @@ def parallel_coordinates(
             else:
                 self.min -= 0.1 * (self.max - self.min)
                 self.max += 0.1 * (self.max - self.min)
+
+            assert (self.max - self.min) > 0
 
         def __call__(self, x):
             s = np.log10 if self.col in log_columns else lambda x: x
@@ -77,6 +90,10 @@ def parallel_coordinates(
 
         ax.set_zorder(100)
         ax.yaxis.set_zorder(100)
+
+        if s.col in ticklabels:
+            ax.set_yticks(np.linspace(0, 1, len(df[s.col])))
+            ax.set_yticklabels(ticklabels[s.col])
 
     lax.xaxis.tick_top()
     lax.tick_params(axis="x", which="both", length=0)
