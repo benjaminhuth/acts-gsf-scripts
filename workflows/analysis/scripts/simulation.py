@@ -59,7 +59,7 @@ def run_geant4_sim(args, config):
     phiCfg = PhiConfig(0, 2 * math.pi)
     particleCfg = ParticleConfig(
         config["particles_per_vertex"],
-        acts.PdgParticle.eElectron,
+        acts.PdgParticle(snakemake.params["pdg"]),
         randomizeCharge=False,
     )
 

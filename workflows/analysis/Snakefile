@@ -5,10 +5,11 @@ envvars:
 
 SEEDING_DICT = {
     "1GeV_to_100GeV": "truth_estimated",
+    "muons": "truth_estimated",
     "4GeV": "smeared",
 }
 
-rule simulated_particles:
+rule simulate_electrons:
     output:
         "tmp/1GeV_to_100GeV/particles.root",
         "tmp/1GeV_to_100GeV/hits.root",
@@ -18,11 +19,12 @@ rule simulated_particles:
         p_max=100,
         p_transverse=True,
         uniform_eta=True,
+        pdg=11,
     script:
         "scripts/simulation.py"
         
     
-rule simulated_particles_4GeV:
+rule simulate_electrons_4GeV:
     output:
         "tmp/4GeV/hits.root",
         "tmp/4GeV/particles.root",
@@ -32,6 +34,22 @@ rule simulated_particles_4GeV:
         p_max=4,
         p_transverse=False,
         uniform_eta=False,
+        pdg=11,
+    script:
+        "scripts/simulation.py"
+
+
+rule simulate_muons:
+    output:
+        "tmp/muons/particles.root",
+        "tmp/muons/hits.root",
+    params:
+        n_events=1000,
+        p_min=1,
+        p_max=100,
+        p_transverse=True,
+        uniform_eta=True,
+        pdg=13,
     script:
         "scripts/simulation.py"
 
@@ -87,32 +105,18 @@ rule all_residual_plot:
     script:
         "scripts/plot_all_residuals.py"
 
-rule detailed_perf_kf_vs_gsf12:
+rule detailed_perf_plots:
     input:
         "tmp/1GeV_to_100GeV/gsf12/tracksummary_gsf.root",
         "tmp/1GeV_to_100GeV/kf/tracksummary_kf.root",
-    params:
-        suptitle="GSF (12 cmps) vs. KF",
-        config_a=("GSF", "tab:orange"),
-        config_b=("KF", "tab:blue"),
-    output:
-        "plots/gsf_vs_kf.pdf"
-    script:
-        "scripts/plot_detailed_perf.py"
-
-
-rule detailed_perf_gsf1_vs_gsf12:
-    input:
-        "tmp/1GeV_to_100GeV/gsf12/tracksummary_gsf.root",
         "tmp/1GeV_to_100GeV/gsf1/tracksummary_gsf.root",
-    params:
-        suptitle="GSF (12 cmps) vs. GSF (1 cmp)",
-        config_a=("GSF (12)", "tab:orange"),
-        config_b=("GSF (1)", "tab:green"),
     output:
-        "plots/gsf_vs_gsf.pdf"
+        "plots/gsf_vs_kf_res.pdf",
+        "plots/gsf_vs_gsf_res.pdf",
+        "plots/pulls.pdf",
     script:
         "scripts/plot_detailed_perf.py"
+
 
 rule histograms_eta_pt:
     input:
@@ -132,11 +136,25 @@ rule sweep_components_weight_cutoff:
         "tmp/sweep_results.csv"
     params:
         n_events=10,
-        filter_outliers=False,
+        apply_selection=True,
         core_quantile=0.95,
     script:
         "scripts/parameters_sweep.py"
-        
+
+
+rule kf_muon_vs_gsf_electron:
+    input:
+        "tmp/1GeV_to_100GeV/gsf12/tracksummary_gsf.root",
+        "tmp/1GeV_to_100GeV/kf/tracksummary_kf.root",
+        "tmp/muons/kf/tracksummary_kf.root",
+    output:
+        "plots/kf_muon_vs_gsf_electron.pdf",
+    params:
+        log=False,
+    script:
+        "scripts/plot_resolution_muon_vs_electron.py"
+
+
 rule plot_sweep:
     input:
         "tmp/sweep_results.csv",
@@ -146,7 +164,7 @@ rule plot_sweep:
         "plots/sweep_reduction_method.pdf"
     script:
         "scripts/plot_sweep.py"
-        
+
 rule plot_eloss_correlation:
     input:
         "tmp/4GeV/gsf12/tracksummary_gsf.root",
@@ -158,25 +176,27 @@ rule plot_eloss_correlation:
         "plots/correlation_res_eloss_first_surface.pdf",
     script:
         "scripts/plot_eloss_correlation.py"
-        
-rule plot_outlier_fit_failures:
+
+rule plot_outliers_holes:
     input:
         "tmp/1GeV_to_100GeV/particles.root",
         "tmp/1GeV_to_100GeV/gsf12/tracksummary_gsf.root",
     output:
-        "plots/outliers_fit_failures.pdf",
+        "plots/outliers_holes.pdf",
     script:
-        "scripts/plot_fit_failures_outlier.py"
+        "scripts/plot_outliers_holes.py"
 
 rule all:
     default_target: True
     input:
         "plots/all_residuals.pdf",
-        "plots/gsf_vs_kf.pdf",
-        "plots/gsf_vs_gsf.pdf",
+        "plots/gsf_vs_gsf_res.pdf",
+        "plots/gsf_vs_kf_res.pdf",
+        "plots/pulls.pdf",
         "plots/res_vs_eta_pt.pdf",
         "plots/sweep_components.pdf",
         "plots/sweep_weight_cutoff.pdf",
         "plots/correlation_res_total_eloss.pdf",
         "plots/correlation_res_eloss_first_surface.pdf",
-#         "plots/outliers_fit_failures.pdf",
+        "plots/kf_muon_vs_gsf_electron.pdf",
+        "plots/outliers_holes.pdf",

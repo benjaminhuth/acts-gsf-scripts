@@ -14,6 +14,9 @@ rule simulated_particles:
         "scripts/make_data.py"
         
 rule make_cpp_benchmark:
+    input:
+        "cpp_benchmark/main.cpp",
+        "cpp_benchmark/CMakeLists.txt"
     output:
         "tmp/build/gsf_benchmark"
     shell:
@@ -33,17 +36,18 @@ rule perf_cpp_benchmark:
         "tmp/event000000000-hits.csv",
         "tmp/build/gsf_benchmark",
     output:
-        "tmp/perf.data"
+        "tmp/{cmps}/perf.data"
     shell:
         """
-        perf record --call-graph=dwarf,65528 -F1000 --output=tmp/perf.data \
+        perf record --call-graph=dwarf,65528 -F1000 --output=tmp/{wildcards.cmps}/perf.data \
             tmp/build/gsf_benchmark \
+                --components {wildcards.cmps} \
                 --input tmp \
                 --odd $ODD_DIR/xml/OpenDataDetector.xml \
                 --matmap $ODD_DIR/data/odd-material-maps.root \
                 --digicfg config/odd-digi-smearing-config.json
         """
-        
+
 rule get_flamegraph:
     output:
         "thirdparty/FlameGraph/stackcollapse-perf.pl",
@@ -52,41 +56,58 @@ rule get_flamegraph:
         """
         git clone https://github.com/brendangregg/FlameGraph thirdparty/FlameGraph
         """
-        
+
 rule perf_process:
     input:
-        "tmp/perf.data",
+        "tmp/{cmps}/perf.data",
         "thirdparty/FlameGraph/stackcollapse-perf.pl",
         "thirdparty/FlameGraph/flamegraph.pl",
-        
     output:
-        "plots/flamegraph.png",
-        "tmp/out.folded.filt.short.namespace"
+        "tmp/{cmps}/out.folded.filt.short.namespace"
     shell:
         """
-        perf script --input tmp/perf.data -a -F comm,pid,tid,time,event,ip,sym,dso > tmp/out.perf
-        thirdparty/FlameGraph/stackcollapse-perf.pl tmp/out.perf > tmp/out.folded
-        c++filt < tmp/out.folded > tmp/out.folded.filt
-        cat tmp/out.folded.filt | python3 scripts/shorten_templates.py > tmp/out.folded.filt.short
-        cat tmp/out.folded.filt.short | python3 scripts/remove_namespaces.py > tmp/out.folded.filt.short.namespace
-        thirdparty/FlameGraph/flamegraph.pl --minwidth=25 --width=1800 tmp/out.folded.filt.short.namespace > tmp/flamegraph.svg
-        convert tmp/flamegraph.svg plots/flamegraph.png
+        export TMPDIR=tmp/{wildcards.cmps}
+        perf script --input $TMPDIR/perf.data -a -F comm,pid,tid,time,event,ip,sym,dso > $TMPDIR/out.perf
+        thirdparty/FlameGraph/stackcollapse-perf.pl $TMPDIR/out.perf > $TMPDIR/out.folded
+        c++filt < $TMPDIR/out.folded > $TMPDIR/out.folded.filt
+        cat $TMPDIR/out.folded.filt | python3 scripts/shorten_templates.py > $TMPDIR/out.folded.filt.short
+        cat $TMPDIR/out.folded.filt.short | python3 scripts/remove_namespaces.py > $TMPDIR/out.folded.filt.short.namespace
+        """
+
+rule plot_flamegraph:
+    input:
+        "tmp/{cmps}/out.folded.filt.short.namespace"
+    output:
+        "plots/flamegraph_{cmps}.svg",
+        "plots/flamegraph_{cmps}.png",
+    shell:
+        """
+        thirdparty/FlameGraph/flamegraph.pl --minwidth=25 --width=1800 \
+            tmp/{wildcards.cmps}/out.folded.filt.short.namespace > plots/flamegraph_{wildcards.cmps}.svg
+        convert plots/flamegraph_{wildcards.cmps}.svg plots/flamegraph_{wildcards.cmps}.png
         """
 
 
 rule plot_piecharts:
     input:
-        "tmp/out.folded.filt.short.namespace"
+        "tmp/{cmps}/out.folded.filt.short.namespace"
     output:
-        "plots/piechart_propagator.png",
-        "plots/piechart_actor.png"
+        "plots/piechart_{cmps}.pdf"
     script:
         "scripts/plot_pie_charts.py"
 
+rule plot_samples_vs_components:
+    input:
+        expand("tmp/{c}/out.folded.filt.short.namespace", c=[1,2,4,8,12,16,20,24,28,32]),
+    output:
+        "plots/components_vs_samples.pdf"
+    script:
+        "scripts/component_time_plot.py"
+        
 
 rule all:
     input:
-        "plots/flamegraph.png",
-        "plots/piechart_propagator.png",
-        "plots/piechart_actor.png",
+        "plots/flamegraph_12.png",
+        "plots/piechart_12.pdf",
+        "plots/components_vs_samples.pdf"
     default_target: True

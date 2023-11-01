@@ -192,6 +192,8 @@ def make_full_residual_plot(
     clip_quantile=None,
     clip_map=None,
     p_pnorm=True,
+    p_unit="GeV",
+    angle_unit="rad",
 ):
     assert len(dfs) == len(labels)
     assert sum([clip_std is None, clip_quantile is None, clip_map is None]) >= 2
@@ -208,12 +210,12 @@ def make_full_residual_plot(
         "res_eT_fit",
     ]
     coor_names = ["d_0", "z", "\\varphi", "\\theta", "q/p", "t"]
-    units = ["mm", "mm", "rad", "rad", "GeV^{-1}", "ns"]
+    units = ["mm", "mm", angle_unit, angle_unit, f"{p_unit}^{-1}", "ns"]
 
     if p_pnorm:
         res_keys += ["res_eP_fit", "res_ePNORM_fit"]
         coor_names += ["p", "p norm"]
-        units += ["GeV", ""]
+        units += [p_unit, ""]
 
     for ax, key, name, unit in zip(axes.flatten(), res_keys, coor_names, units):
         values = np.concatenate([df[key] for df in dfs])
@@ -257,8 +259,6 @@ def make_full_residual_plot(
         ax.set_xlabel(
             "${{{}}}_{{fit}} - {{{}}}_{{true}} \quad [{}]$".format(name, name, unit)
         )
-
-    axes.flatten()[-1].set_xlabel("$(p_{fit} - p_{true}) / p_{true}$")
 
     axes[0, 0].legend()
     return fig, axes

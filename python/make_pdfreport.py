@@ -41,7 +41,7 @@ def make_pdfreport(
     fig.tight_layout()
     save_to_pdfreport(fig)
 
-    summary_gsf, summary_kf = remove_outliers_and_unify_index(summary_gsf, summary_kf)
+    summary_gsf, summary_kf = select_particles_and_unify_index(summary_gsf, summary_kf)
 
     fig, _ = make_full_residual_plot(
         [summary_kf, summary_gsf], ["KF", "GSF"], clip_std=4

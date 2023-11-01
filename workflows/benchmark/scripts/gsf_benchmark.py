@@ -133,7 +133,7 @@ gsfOptions = {
     "betheHeitlerApprox": acts.examples.AtlasBetheHeitlerApprox.loadFromFiles(
         "/home/benjamin/Documents/athena/Tracking/TrkFitter/TrkGaussianSumFilter/Data/GeantSim_LT01_cdf_nC6_O5.par",
         "/home/benjamin/Documents/athena/Tracking/TrkFitter/TrkGaussianSumFilter/Data/GeantSim_GT01_cdf_nC6_O5.par"),
-    "finalReductionMethod": acts.examples.FinalReductionMethod.maxWeight,
+    "componentMergeMethod": acts.examples.ComponentMergeMethod.maxWeight,
     "weightCutoff": 1.e-8,
     "level": acts.logging.ERROR,
 }

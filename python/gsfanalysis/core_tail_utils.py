@@ -6,11 +6,11 @@ import scipy.stats as sps
 from .statistics import rms
 
 
-def add_core_to_df_quantile(df, key, quantile=0.95):
+def add_core_to_df_quantile(df, key, quantile=0.95, core_label="is_core"):
     d = np.quantile(np.sort(abs(df[key])), quantile)
     core_range = (-d, d)
 
-    df["is_core"] = df[key].between(*core_range)
+    df[core_label] = df[key].between(*core_range)
 
     return df
 

@@ -34,7 +34,7 @@ def default_analysis(
     print_basic_statistics([summary_gsf, summary_kf], ["GSF", "KF"])
 
     # remove outlier
-    summary_gsf, summary_kf = remove_outliers_and_unify_index(
+    summary_gsf, summary_kf = select_particles_and_unify_index(
         summary_gsf.copy(), summary_kf.copy()
     )
 

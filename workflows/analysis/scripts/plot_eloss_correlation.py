@@ -14,8 +14,8 @@ summary_kf, _ = uproot_to_pandas(
     uproot.open(f"{snakemake.input[3]}:trackstates"),
 )
 
-summary_gsf, summary_kf = remove_outliers_and_unify_index(
-    summary_gsf.copy(), summary_kf.copy()
+summary_gsf, summary_kf = select_particles_and_unify_index(
+    summary_gsf.copy(), summary_kf.copy(), max_eloss_first_surface=np.inf,
 )
 
 # from gsfanalysis.tracksummary_plots import *

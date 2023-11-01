@@ -159,7 +159,7 @@ gsfOptions = {
         low_bhapprox,
         high_bhapprox,
     ),
-    "finalReductionMethod": acts.examples.FinalReductionMethod.maxWeight,
+    "componentMergeMethod": acts.examples.ComponentMergeMethod.maxWeight,
     "weightCutoff": 1.0e-4,
     "level": acts.logging.FATAL,
 }

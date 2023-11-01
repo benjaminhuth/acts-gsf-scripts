@@ -12,8 +12,10 @@ from gsfanalysis.pandas_import import *
 from gsfanalysis.core_tail_utils import *
 import gsfanalysis.statistics as stats
 
-from utils import *
+import acts
+import acts.examples
 
+from utils_fitting import run_fitting
 
 def symmetric_q95(x):
     return np.quantile(abs(x - stats.mode(x)), 0.95)
@@ -22,19 +24,29 @@ def symmetric_q95(x):
 def symmetric_q68(x):
     return np.quantile(abs(x - stats.mode(x)), 0.68)
 
-
 athena_dir = Path("/home/benjamin/Documents/athena")
 gsf_data_dir = athena_dir / "Tracking/TrkFitter/TrkGaussianSumFilter/Data"
 low_bhapprox = gsf_data_dir / "GeantSim_LT01_cdf_nC6_O5.par"
 high_bhapprox = gsf_data_dir / "GeantSim_GT01_cdf_nC6_O5.par"
 
-eMaxWeight = int(acts.examples.FinalReductionMethod.maxWeight)
-eMean = int(acts.examples.FinalReductionMethod.mean)
-
-
 def run_configuration(pars):
-    components, weight_cutoff, finalReductionMethod = pars
+    components, weight_cutoff, componentMergeMethod = pars
     print("-> cmps: {}, wc: {}".format(components, weight_cutoff))
+    
+    # Be robust for refactored name or current name in main
+    MergeMethodEnum = None
+    try:
+        MergeMethodEnum = acts.examples.ComponentMergeMethod
+        mergeMethodKey = "componentMergeMethod"
+    except:
+        MergeMethodEnum = acts.examples.FinalReductionMethod
+        mergeMethodKey = "finalReductionMethod"
+
+    try:
+        componentMergeMethod = vars(MergeMethodEnum)[componentMergeMethod]
+    except:
+        print(f"WARNING: cannot use merge method '{componentMergeMethod}', not implemented")
+        return pd.DataFrame()
 
     opts = {
         "maxComponents": components,
@@ -44,9 +56,7 @@ def run_configuration(pars):
             str(low_bhapprox),
             str(high_bhapprox),
         ),
-        "finalReductionMethod": acts.examples.FinalReductionMethod(
-            finalReductionMethod
-        ),
+        mergeMethodKey: componentMergeMethod,
         "weightCutoff": weight_cutoff,
         "level": acts.logging.ERROR,
     }
@@ -72,21 +82,21 @@ def run_configuration(pars):
     result_row = {}
     result_row["components"] = components
     result_row["weight_cutoff"] = weight_cutoff
-    result_row["final_reduction_method"] = str(opts["finalReductionMethod"])[21:]
+    result_row["component_merge_method"] = str(opts[mergeMethodKey])[21:]
 
     fitter_timing = timing[timing["identifier"] == "Algorithm:TrackFittingAlgorithm"]
     assert len(fitter_timing) == 1
     result_row["timing"] = float(fitter_timing["time_perevent_s"].iloc[0])
 
     result_row["n_tracks"] = len(summary_gsf)
-
-    summary_gsf_no_outliers = summary_gsf[summary_gsf["nOutliers"] == 0]
-    result_row["n_outliers"] = len(summary_gsf) - len(summary_gsf_no_outliers)
+    result_row["n_outliers"] = sum(summary_gsf["nOutliers"] > 0)
+    result_row["n_holes"] = sum(summary_gsf["nHoles"] > 0)
 
     local_coors = ["QOP", "P", "PNORM"]
 
-    if snakemake.params["filter_outliers"]:
-        summary_gsf = summary_gsf_no_outliers
+    if snakemake.params["apply_selection"]:
+        print("INFO: Apply selection in sweep!")
+        summary_gsf = select_particles_and_unify_index(summary_gsf.copy())
 
     for coor in local_coors:
         res_key = f"res_e{coor}_fit"
@@ -94,6 +104,7 @@ def run_configuration(pars):
 
         for key, stat in [
             (res_key, np.mean),
+            (res_key, np.std),
             (res_key, stats.rms),
             (res_key, stats.mode),
             (res_key, symmetric_q95),
@@ -138,16 +149,16 @@ pars = []
 components = [1, 2, 4, 8, 12, 16, 20, 24, 28, 32]
 print("Sweep components:", components)
 for c in components:
-    pars.append((c, 1.0e-6, eMaxWeight))
+    pars.append((c, 1.0e-6, "maxWeight"))
 
 # 1.e-6 already covered above
 weight_cutoff = [1.0e-8, 1.0e-4, 1.0e-2, 1.0e-1]
 print("Sweep weight cutoffs:", weight_cutoff)
 for w in weight_cutoff:
-    pars.append((12, w, eMaxWeight))
+    pars.append((12, w, "maxWeight"))
 
-# TODO add mode
-pars.append((12, 1.0e-6, eMean))
+pars.append((12, 1.0e-6, "mean"))
+pars.append((12, 1.0e-6, "mode"))
 
 print("Grid size:", len(pars))
 

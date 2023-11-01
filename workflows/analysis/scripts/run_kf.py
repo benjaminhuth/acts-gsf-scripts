@@ -3,7 +3,7 @@ from pathlib import Path
 import acts
 import acts.examples
 
-from utils import run_fitting
+from utils_fitting import run_fitting
 
 kalmanOptions = {
     "multipleScattering": True,

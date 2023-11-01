@@ -65,12 +65,14 @@ int main(int argc, char **argv) {
   std::vector<std::string> oddFiles(1);
   std::string rootMaterialMap;
   std::string digiFile;
+  std::size_t maxComponents = 1;
 
   po::options_description desc;
   desc.add_options()("input", po::value(&inputDir), "input directory")(
       "odd", po::value(&oddFiles.front()), "ODD XML file")(
       "matmap", po::value(&rootMaterialMap), "ROOT material map")(
-      "digicfg", po::value(&digiFile), "Digitization config file");
+      "digicfg", po::value(&digiFile), "Digitization config file")(
+      "components", po::value(&maxComponents), "Max components");
 
   po::variables_map vm;
   po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
@@ -78,6 +80,7 @@ int main(int argc, char **argv) {
 
   // Check if there are enough args or if --help is given
   if (!vm.count("input") || !vm.count("odd") || !vm.count("matmap")) {
+    std::cerr << "Error in command line options!\n";
     std::cerr << desc << "\n";
     return 1;
   }
@@ -195,7 +198,6 @@ int main(int argc, char **argv) {
   }
 
   {
-    std::size_t maxComponents = 12;
     double weightCutoff = 1.e-4;
     auto logger = Acts::getDefaultLogger("Gsf", Acts::Logging::ERROR);
 

@@ -41,7 +41,7 @@ def short_analysis(inputDir: Path):
 
     print("components:", gsf_config["maxComponents"])
     print("weight cutoff:", gsf_config["weightCutoff"])
-    print("reduction:", gsf_config["finalReductionMethod"], "\n")
+    print("reduction:", gsf_config["componentMergeMethod"], "\n")
 
     if "particles" in run_config:
         total_tracks = run_config["events"] * run_config["particles"]

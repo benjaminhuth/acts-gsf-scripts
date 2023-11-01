@@ -37,8 +37,18 @@ def mode(x, is_sorted=False):
     return dispatch_dtype(x_array)
 
 
-def rms(x):
+def rms(x,axis=None):
     """
     Root mean square of a sample
     """
-    return np.sqrt(np.mean(np.square(x)))
+    return np.sqrt(np.mean(np.square(x), axis=axis))
+
+
+def skewness(x):
+    mu = np.mean(x)
+    N = len(x)
+    
+    nom = 1/N * np.sum((x-mu)**3)
+    denom = 1/N * np.sum((x-mu)**2)
+    
+    return nom / denom**(3/2)

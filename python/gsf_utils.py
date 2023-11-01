@@ -346,6 +346,7 @@ class GsfEnvironment:
                 low_bhapprox,
                 high_bhapprox,
             ),
+            # "componentMergeMethod": acts.examples.MixtureMergeMethod.maxWeight,
             "finalReductionMethod": acts.examples.FinalReductionMethod.maxWeight,
             "weightCutoff": self.args["cutoff"],
             "level": acts.logging.VERBOSE
@@ -394,6 +395,7 @@ class GsfEnvironment:
                     filePath=str(
                         outputDir / "root/tracksummary_{}.root".format(fitter)
                     ),
+                    # writeGsfFinalState=(fitter == "gsf")
                 )
             )
 
@@ -421,6 +423,7 @@ class GsfEnvironment:
         del gsfConfig["betheHeitlerApprox"]
         del gsfConfig["level"]
 
+        # gsfConfig["componentMergeMethod"] = str(gsfConfig["componentMergeMethod"])
         gsfConfig["finalReductionMethod"] = str(gsfConfig["finalReductionMethod"])
         gsfConfig["low_bhapprox"] = low_bhapprox
         gsfConfig["high_bhapprox"] = high_bhapprox

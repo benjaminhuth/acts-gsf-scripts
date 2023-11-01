@@ -33,7 +33,7 @@ summary_kf_all, states_kf = uproot_to_pandas(
     uproot.open(str(inputDir / "root/trackstates_kf.root:trackstates")),
 )
 
-summary_gsf, summary_kf = remove_outliers_and_unify_index(
+summary_gsf, summary_kf = select_particles_and_unify_index(
     summary_gsf_all.copy(), summary_kf_all.copy()
 )
 
