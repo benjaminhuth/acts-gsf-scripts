@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 
+detector_color = "grey"
+
 class ViewDrawer:
     """
     Base class for a drawer that encapsulates drawing the state with a certain view (x-y, z-r, ...)
@@ -8,19 +10,18 @@ class ViewDrawer:
 
     def draw_detector(self, ax):
         ax = self.draw_detector_impl(ax)
+        ax.set_title("{}-{} plot".format(self.coor0, self.coor1))
+        ax.set_ylabel(self.coor1)
+        ax.set_xlabel(self.coor0)
         return ax
 
     def plot(self, ax, values, title_appendix="", **kwargs):
         ax.plot(self.get_coor0(values), self.get_coor1(values), **kwargs)
-        ax.set_ylabel(self.coor1)
-        ax.set_xlabel(self.coor0)
         ax.set_title("{}-{} plot: {}".format(self.coor0, self.coor1, title_appendix))
         return ax
 
     def scatter(self, ax, values, title_appendix="", **kwargs):
         ax.scatter(self.get_coor0(values), self.get_coor1(values), **kwargs)
-        ax.set_ylabel(self.coor1)
-        ax.set_xlabel(self.coor0)
         return ax
 
     def annotate(self, ax, position_3d, text):
@@ -87,24 +88,32 @@ class CsvCartesianDrawer:
     def __init__(self, detector_csv, centers, bounds=None):
         super().__init__()
         d = pd.read_csv(detector_csv)
+        d["cr"] = np.hypot(d["cx"], d["cy"])
+        
+        l = len(d)
 
-        self.simple_telescope = bounds is not None
-
+        # milimeter precision should be enough
+        for c in centers:
+            d[c] = d[c].astype(int)
+        
+        d = d.drop_duplicates(centers).copy()
+        print("INFO CsvCartesianDrawer",centers,"dup drop",l,"->",len(d))
         self.points = d[centers].to_numpy()
 
         # assumes x axis is telescope axis
+        self.simple_telescope = bounds is not None
         if self.simple_telescope:
             self.bounds = d[bounds].to_numpy()
 
     def draw_detector_impl(self, ax):
         if not self.simple_telescope:
-            ax.scatter(self.points[:, 0], self.points[:, 1], color="lightgrey", s=1)
+            ax.scatter(self.points[:, 0], self.points[:, 1], color=detector_color, s=1)
         else:
             for point, bound in zip(self.points, self.bounds):
                 ax.plot(
                     [point[0], point[0]],
                     [point[1] + bound[0], point[1] + bound[1]],
-                    color="lightgrey",
+                    color=detector_color,
                     zorder=0.5,
                 )
 
@@ -142,12 +151,7 @@ class CsvXZDrawer(XZDrawer):
 class CsvZRDrawer(ZRDrawer):
     def __init__(self, detector_csv):
         super().__init__()
-        d = pd.read_csv(detector_csv)
-
-        self.z = d["cz"].to_numpy()
-        self.r = np.hypot(d["cx"].to_numpy(), d["cy"].to_numpy())
+        self.drawer = CsvCartesianDrawer(detector_csv, ["cz", "cr"])
 
     def draw_detector_impl(self, ax):
-        ax.scatter(self.z, self.r, color="lightgrey", s=1)
-
-        return ax
+        return self.drawer.draw_detector_impl(ax)

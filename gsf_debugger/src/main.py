@@ -2,8 +2,8 @@ import sys
 
 from PyQt5 import QtCore, QtWidgets
 
-from widgets import ProcessorWidget
-from processors import AverageTrackPlotter
+from widgets import ProcessorWidget, LogWidget
+from processors import AverageTrackPlotter, ComponentsPlotter, LogCollector
 from drawers import CsvZRDrawer, CsvXYDrawer
 
 
@@ -15,15 +15,25 @@ class MainWindow(QtWidgets.QWidget):
         self.setWindowTitle("GSF Debugger")
         
         drawers = [CsvZRDrawer(detector_file), CsvXYDrawer(detector_file)]
-        processors = [AverageTrackPlotter(drawers)]
+        processors = [
+            AverageTrackPlotter(drawers),
+            ComponentsPlotter(drawers),
+        ]
+        
+        logCollector = LogCollector()
         
         with open(input_file, 'r') as f:            
             for line in f:
+                logCollector.parse_line(line)
                 for processor in processors:
                     processor.parse_line_base(line)
 
         # Assert all have the same step size
-        assert all([processors[0].number_steps() == p.number_steps() for p in processors ])
+        for p in processors:
+            print(p.name(), "steps", p.number_steps())
+        
+        # assert all([processors[0].number_steps() == p.number_steps() for p in processors ])
+        steps = min([ p.number_steps() for p in processors ])
 
         layout = QtWidgets.QVBoxLayout()
 
@@ -34,7 +44,7 @@ class MainWindow(QtWidgets.QWidget):
         # Slider
         self.slider = QtWidgets.QSlider(QtCore.Qt.Horizontal, self)
         self.slider.setMinimum(0)
-        self.slider.setMaximum(len(processors[0].fwd_steps) + len(processors[0].bwd_steps))
+        self.slider.setMaximum(steps)
         self.slider.valueChanged.connect(self.step_changed)
         layout.addWidget(self.slider)
         
@@ -45,6 +55,9 @@ class MainWindow(QtWidgets.QWidget):
             self.processor_widgets.append(ProcessorWidget(p))
             tabs.addTab(self.processor_widgets[-1], p.name())
         
+        self.logWidget = LogWidget(logCollector)
+        tabs.addTab(self.logWidget, "Log")
+        
         layout.addWidget(tabs)
 
         # Finalize
@@ -53,6 +66,7 @@ class MainWindow(QtWidgets.QWidget):
         
     def step_changed(self):
         self.label.setText(f"step: {self.slider.value()}")
+        self.logWidget.change_step(self.slider.value())
         for w in self.processor_widgets:
             w.change_step(self.slider.value())
 

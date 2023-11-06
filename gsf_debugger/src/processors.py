@@ -1,5 +1,8 @@
 import traceback
 import re
+import copy
+import sys
+from itertools import cycle
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -71,8 +74,7 @@ class AverageTrackPlotter(BaseProcessor):
 
             for ax, drawer in zip(axes, self.view_drawers):
                 ax = drawer.draw_detector(ax)
-                ax = drawer.plot(ax, positions, label=direction)
-                ax = drawer.scatter(ax, positions)
+                ax = drawer.plot(ax, positions, label=direction, marker='x', lw=1)
 
                 if self.annotate_steps:
                     for i, p in enumerate(positions):
@@ -86,13 +88,12 @@ class AverageTrackPlotter(BaseProcessor):
 
 
 class ComponentsPlotter(BaseProcessor):
-    def __init__(self, view_drawers, pick_step=-1):
+    def __init__(self, view_drawers):
         self.component_positions = []
         self.last_component = sys.maxsize
         self.current_direction = "forward"
         self.current_step = 0
         self.stages = []
-        self.pick_step = pick_step
 
         self.view_drawers = view_drawers
 
@@ -131,7 +132,16 @@ class ComponentsPlotter(BaseProcessor):
 
             self.last_component = current_cmp
 
-    def process_data(self):
+    def name(self):
+        return "Components"
+            
+    def get_figure_axes(self):
+        return  plt.subplots(1, len(self.view_drawers))
+    
+    def number_steps(self):
+        return sum([ len(s[3]) for s in self.stages])
+
+    def draw_stage(self, fig, axes, stage):
         colors = [
             "red",
             "orangered",
@@ -147,60 +157,87 @@ class ComponentsPlotter(BaseProcessor):
             "magenta",
             "brown",
         ]
-
-        for (
-            target_surface,
-            direction,
-            abs_step,
-            component_positions,
-        ) in self.stages:
-            if self.pick_step != -1 and abs_step != self.pick_step:
-                continue
-
-            fig, axes = plt.subplots(1, len(self.view_drawers))
-
-            base_step = abs_step - len(component_positions)
-            fig.suptitle(
-                "Stepping {} towards {} ({} steps, starting from {})".format(
-                    direction,
-                    target_surface,
-                    len(component_positions),
-                    base_step,
-                )
+        
+        target_surface, direction, abs_step, component_positions = stage
+        
+        base_step = abs_step - len(component_positions)
+        
+        fig.suptitle(
+            "Stepping {} towards {} ({} steps, starting from {})".format(
+                direction,
+                target_surface,
+                len(component_positions),
+                base_step,
             )
+        )
+
+        color_positions_x = {color: [] for color in colors}
+        color_positions_z = {color: [] for color in colors}
+        color_positions_y = {color: [] for color in colors}
+        annotations = {color: [] for color in colors}
+
+        for step, components in enumerate(component_positions):
+            positions = np.vstack(components)
+
+            for i, (cmp_pos, color) in enumerate(zip(positions, cycle(colors))):
+                color_positions_x[color].append(cmp_pos[0])
+                color_positions_z[color].append(cmp_pos[2])
+                color_positions_y[color].append(cmp_pos[1])
+
+                annotations[color].append("{}-{}".format(step, i))
+
+        for color in colors:
+            color_positions = np.array(
+                [
+                    color_positions_x[color],
+                    color_positions_y[color],
+                    color_positions_z[color],
+                ]
+            ).T
 
             for ax, drawer in zip(axes, self.view_drawers):
-                ax = drawer.draw_detector(ax)
+                ax = drawer.plot(ax, color_positions, c=color, marker='x', lw=1)
 
-            color_positions_x = {color: [] for color in colors}
-            color_positions_z = {color: [] for color in colors}
-            color_positions_y = {color: [] for color in colors}
-            annotations = {color: [] for color in colors}
 
-            for step, components in enumerate(component_positions):
-                if step > 300:
-                    break
+    def draw(self, fig, axes, requested_step):        
+        
+        fig.suptitle("Nothing to draw\n")
+        for ax, drawer in zip(axes, self.view_drawers):
+            ax = drawer.draw_detector(ax)
 
-                positions = np.vstack(components)
+        # print("req",requested_step)
+        # print([s[2] for s in self.stages], flush=True)
 
-                for i, (cmp_pos, color) in enumerate(zip(positions, cycle(colors))):
-                    color_positions_x[color].append(cmp_pos[0])
-                    color_positions_z[color].append(cmp_pos[2])
-                    color_positions_y[color].append(cmp_pos[1])
+        for s in self.stages:
+            if s[2] >= requested_step:
+                self.draw_stage(fig, axes, s)
+                break
 
-                    annotations[color].append("{}-{}".format(step, i))
+        fig.tight_layout()
+        return fig, axes
 
-            for color in colors:
-                color_positions = np.array(
-                    [
-                        color_positions_x[color],
-                        color_positions_y[color],
-                        color_positions_z[color],
-                    ]
-                ).T
 
-                for ax, drawer in zip(axes, self.view_drawers):
-                    ax = drawer.scatter(ax, color_positions, c=color)
 
-            plt.show()
 
+
+class LogCollector(BaseProcessor):
+    def __init__(self):
+        self.loglines = []
+
+        self._current_lines = []
+
+    def parse_line(self, line):
+        
+        if line.count("at mean position") == 1:
+            self.loglines.append(copy.deepcopy(self._current_lines))
+            self._current_lines = []
+            
+        self._current_lines.append(line)
+
+
+    def name(self):
+        return "Log"
+
+    def number_steps(self):
+        return len(self.loglines)
+        

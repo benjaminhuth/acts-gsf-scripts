@@ -1,7 +1,7 @@
 import matplotlib
 matplotlib.use('QtAgg')
 
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, QtGui
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure
@@ -30,3 +30,26 @@ class ProcessorWidget(QtWidgets.QWidget):
             
         self.processor.draw(self.fig, self.axes, step)
         self.canvas.draw()
+
+
+
+class LogWidget(QtWidgets.QTextEdit):
+    def __init__(self, log_processor, parent=None):
+        super(LogWidget, self).__init__()
+        self.logs = log_processor.loglines[1:]
+        
+        font = QtGui.QFont()
+        font.setFamily("monospace [Consolas]")
+        font.setFixedPitch(True)
+        font.setStyleHint(QtGui.QFont.TypeWriter)
+        
+        self.setFont(font)
+        self.setReadOnly(True)
+        self.setLineWrapMode(QtWidgets.QTextEdit.NoWrap)
+        self.change_step(0)
+        
+    def change_step(self, step):
+        if step >= len(self.logs):
+            self.setText("Error")
+        else:
+            self.setText("".join(self.logs[step]))
