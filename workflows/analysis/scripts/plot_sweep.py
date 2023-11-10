@@ -74,6 +74,7 @@ sweep_components = (
     sweep_result[
         (sweep_result["weight cutoff"] == 1e-6)
         & (sweep_result["component merging"] == "maxWeight")
+        & (sweep_result["mixture_reduction"] == "KLDistanceQoP")
         & (sweep_result["components"].isin([1, 2, 4, 8, 12, 24, 32]))
     ]
     .copy()
@@ -89,11 +90,15 @@ fig1.savefig(snakemake.output[0])
 sweep_cutoff = (
     sweep_result[
         (sweep_result["components"] == 12)
+        & (sweep_result["mixture_reduction"] == "KLDistanceQoP")
         & (sweep_result["component merging"] == "maxWeight")
     ]
     .copy()
     .sort_values(by=["weight cutoff"], ascending=False)
 )
+print("Weight cutoff")
+print(sweep_cutoff)
+print()
 
 fig2, ax = make_coordinates_plot("weight cutoff", sweep_cutoff)
 fig2.suptitle("Different weight cutoffs with fixed component number {}".format(12))
@@ -101,22 +106,44 @@ fig2.tight_layout()
 fig2.savefig(snakemake.output[1])
 
 # Reduction methods
-sweep_red_meth = (
+sweep_merge_meth = (
     sweep_result[
         (sweep_result["weight cutoff"] == 1e-6) & (sweep_result["components"] == 12)
+        & (sweep_result["mixture_reduction"] == "KLDistanceQoP")
     ]
-    .copy()
-    .sort_values(by=["components"], ascending=False)
+    .copy().drop_duplicates(["component merging"])
 )
-assert len(sweep_red_meth) == 3 or len(sweep_red_meth) == 2
+print("Component Merge method")
+print(sweep_merge_meth)
+print()
+# no mode
+assert len(sweep_merge_meth) == 2
 
 cmap = ListedColormap(matplotlib.colormaps["plasma"](np.linspace(0.4, 0.8, 12)))
 fig3, ax = make_coordinates_plot(
-    "component merging", sweep_red_meth, figsize=(10, 3), cmap=cmap
+    "component merging", sweep_merge_meth, figsize=(10, 3), cmap=cmap
 )
-fig3.suptitle(f"Reduction methods with {12} components and weight-cutoff {1e-6}")
+fig3.suptitle(f"Merge methods with {12} components and weight-cutoff {1e-6}")
 fig3.tight_layout()
 fig3.savefig(snakemake.output[2])
+
+sweep_reduction_algorithm = (
+    sweep_result[
+        (sweep_result["weight cutoff"] == 1e-6) & (sweep_result["components"] == 12)
+        & (sweep_result["component merging"] == "maxWeight")
+    ]
+    .copy().drop_duplicates(["mixture_reduction"])
+)
+sweep_reduction_algorithm = sweep_reduction_algorithm[ sweep_reduction_algorithm.mixture_reduction != "aggressiveKLDistance" ]
+print("Mixture reduction method")
+print(sweep_reduction_algorithm)
+print()
+fig4, ax = make_coordinates_plot(
+    "mixture_reduction", sweep_reduction_algorithm, figsize=(10, 3), cmap=cmap
+)
+fig4.suptitle(f"Reduction algorithms with {12} components and weight-cutoff {1e-6}")
+fig4.tight_layout()
+fig4.savefig(snakemake.output[3])
 
 # dfgsdfdfgsdfgsfsdf
 if snakemake.config["plt_show"]:

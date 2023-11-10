@@ -14,6 +14,7 @@ def parallel_coordinates(
     log_columns=[],
     cmap=None,
     figsize=None,
+    enlarge=0.0,
 ):
     fig, lax = plt.subplots(figsize=figsize)
 
@@ -81,7 +82,7 @@ def parallel_coordinates(
         if s.col in log_columns:
             ax.set_yscale("log")
 
-        ax.set_ylim(s.min, s.max)
+        ax.set_ylim(s.min * (1-enlarge), s.max * (1+enlarge))
         ax.spines["right"].set_position(("data", x))
         ax.spines["left"].set_visible(False)
 

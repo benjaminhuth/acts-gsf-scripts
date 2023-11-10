@@ -160,7 +160,6 @@ def run_fitting(
         s.addWhiteboardAlias("truth_seeded_particles", "particles_initial_selected")
     else:
         raise ValueError(f"invalid seeding config '{seeding}'")
-    trajectories = "trajectories_" + fitter
     tracks = "tracks_" + fitter
 
     function = fitter_factory(trackingGeometry, field, **fitter_options)
@@ -178,18 +177,10 @@ def run_fitting(
         )
     )
 
-    s.addAlgorithm(
-        acts.examples.TracksToTrajectories(
+    s.addWriter(
+        acts.examples.RootTrackSummaryWriter(
             level=defaultLogLevel,
             inputTracks=tracks,
-            outputTrajectories=trajectories,
-        )
-    )
-
-    s.addWriter(
-        acts.examples.RootTrajectorySummaryWriter(
-            level=defaultLogLevel,
-            inputTrajectories=trajectories,
             inputParticles="truth_seeded_particles",
             inputMeasurementParticlesMap="measurement_particles_map",
             filePath=str(outputDir / "tracksummary_{}.root".format(fitter)),
@@ -197,9 +188,9 @@ def run_fitting(
     )
 
     s.addWriter(
-        acts.examples.RootTrajectoryStatesWriter(
+        acts.examples.RootTrackStatesWriter(
             level=defaultLogLevel,
-            inputTrajectories=trajectories,
+            inputTracks=tracks,
             inputParticles="truth_seeded_particles",
             inputSimHits="simhits",
             inputMeasurementParticlesMap="measurement_particles_map",

@@ -28,7 +28,7 @@ def run_geant4_sim(args, config):
     )
     from acts.examples.odd import getOpenDataDetector
 
-    from utils import setup
+    from utils_fitting import setup
 
     u = acts.UnitConstants
 

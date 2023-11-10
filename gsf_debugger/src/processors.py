@@ -50,6 +50,9 @@ class AverageTrackPlotter(BaseProcessor):
         return len(self.fwd_steps) + len(self.bwd_steps)
 
     def draw(self, fig, axes, step):
+        for ax, drawer in zip(axes, self.view_drawers):
+            ax = drawer.draw_detector(ax)
+
         if step > self.number_steps():
             return fig, axes
         
@@ -73,7 +76,6 @@ class AverageTrackPlotter(BaseProcessor):
             positions = np.vstack(positions)
 
             for ax, drawer in zip(axes, self.view_drawers):
-                ax = drawer.draw_detector(ax)
                 ax = drawer.plot(ax, positions, label=direction, marker='x', lw=1)
 
                 if self.annotate_steps:
@@ -241,3 +243,177 @@ class LogCollector(BaseProcessor):
     def number_steps(self):
         return len(self.loglines)
         
+
+
+
+class GsfMomentumRecorder:
+    def __init__(self):
+        # Global state
+        self.gsf_started_backwards = False
+        self.gsf_accumulated_pathlength = 0
+        self.printed_qop_warning = False
+
+        # Recordings
+        self.gsf_momenta = []
+        self.gsf_cmp_data = []
+        self.gsf_pathlengths = []
+
+        # Current step
+        self.gsf_current_step_cmp_momenta = []
+        self.gsf_current_step_cmp_weights = []
+        self.gsf_have_momentum = False
+        self.gsf_last_step_number = None
+
+    def parse_line(self, line):
+        if line.count("Gsf step") == 1:
+            # Last step appears twice in log, prevent this
+            if int(line.split()[5]) == self.gsf_last_step_number:
+                return
+
+            self.gsf_last_step_number = int(line.split()[5])
+
+            # Update component states if not in first step
+            if len(self.gsf_current_step_cmp_momenta) > 0:
+                self.gsf_cmp_data.append(
+                    (
+                        self.gsf_current_step_cmp_momenta,
+                        self.gsf_current_step_cmp_weights,
+                    )
+                )
+                self.gsf_current_step_cmp_momenta = []
+                self.gsf_current_step_cmp_weights = []
+
+            # Save momentum
+            assert len(self.gsf_momenta) == len(self.gsf_pathlengths)
+            self.gsf_momenta.append(float(line.split()[-4]))
+            self.gsf_have_momentum = True
+
+        elif re.match(r"^.*#[0-9]+\spos", line) and not self.gsf_started_backwards:
+            line = line.replace(",", "")
+            qop = float(line.split()[-3])
+            if abs(1.0 / qop) < 1:
+                p = qop
+                if not self.printed_qop_warning:
+                    print("WARNING: assume qop -> p because |1/qop| < 1")
+                    self.printed_qop_warning = True
+            p = abs(1 / qop)
+            w = float(line.split()[-7])
+            self.gsf_current_step_cmp_momenta.append(p)
+            self.gsf_current_step_cmp_weights.append(w)
+
+        elif line.count("Step with size") == 1:
+            self.gsf_accumulated_pathlength += float(line.split()[-2])
+
+            if self.gsf_have_momentum:
+                self.gsf_have_momentum = False
+                self.gsf_pathlengths.append(self.gsf_accumulated_pathlength)
+                assert len(self.gsf_pathlengths) == len(self.gsf_momenta)
+
+
+
+class MomentumGraph(BaseProcessor):
+    def __init__(self):
+        self.gsf_forward_momentum_recorder = GsfMomentumRecorder()
+        self.gsf_backward_momentum_recorder = GsfMomentumRecorder()
+        self.gsf_current_momentum_recorder = self.gsf_forward_momentum_recorder
+
+        self._flipped = False
+
+    def parse_line(self, line):
+        if line.count("Do backward propagation") == 1:
+            self.gsf_current_momentum_recorder = self.gsf_backward_momentum_recorder
+
+        self.gsf_current_momentum_recorder.parse_line(line)
+
+    def name(self):
+        return "Momentum"
+
+    def get_figure_axes(self):
+        return plt.subplots()
+
+    def number_steps(self):
+        return len(self.gsf_forward_momentum_recorder.gsf_momenta) + len(self.gsf_backward_momentum_recorder.gsf_momenta)
+
+    def plot_components(self, ax, pathlengths, cmp_data, colors):
+        for pl, (momenta, weights), color in zip(pathlengths, cmp_data, cycle(colors)):
+            s = np.array(weights) * 0.9 + 0.1
+            ax.scatter(
+                pl * np.ones(len(momenta)),
+                momenta,
+                c=color,
+                s=s,
+                label="_nolegend_",
+            )
+
+    def plot(
+        self,
+        ax,
+        name,
+        gsf_pathlengths,
+        gsf_momenta,
+        gsf_cmp_data,
+        color
+    ):
+        # colors = ['red', 'orangered', 'orange', 'gold', 'olive', 'forestgreen', 'lime', 'teal', 'cyan', 'blue', 'indigo', 'magenta', 'brown']
+        # colors = ['forestgreen', 'lime', 'teal', 'indigo']
+        colors = ["black"]
+
+        # Shorten if necessary
+        if len(gsf_momenta) == len(gsf_pathlengths) + 1:
+            gsf_momenta = gsf_momenta[:-1]
+
+        # Ensure size is equal...
+        gsf_cmp_data = gsf_cmp_data[0 : len(gsf_momenta)]
+
+        # Scatter components
+        # self.plot_components(ax, gsf_pathlengths, gsf_cmp_data, colors)
+
+        if len(gsf_pathlengths) > 0:
+            ax.plot(
+                gsf_pathlengths,
+                gsf_momenta,
+                c=color,
+                label="GSF {}".format(name),
+            )
+
+        return ax
+
+
+    def draw(self, fig, ax, requested_step):
+        if not self._flipped:
+            self.gsf_backward_momentum_recorder.gsf_pathlengths = -1*np.flip(np.array(self.gsf_backward_momentum_recorder.gsf_pathlengths))
+            self._flipped = True
+
+        all_pls = np.concatenate([self.gsf_forward_momentum_recorder.gsf_pathlengths, self.gsf_backward_momentum_recorder.gsf_pathlengths])
+
+
+        # Forward
+        ax = self.plot(
+            ax,
+            "forward",
+            self.gsf_forward_momentum_recorder.gsf_pathlengths,
+            self.gsf_forward_momentum_recorder.gsf_momenta,
+            self.gsf_forward_momentum_recorder.gsf_cmp_data,
+            "tab:blue",
+        )
+
+        # Backward
+        ax = self.plot(
+            ax,
+            "backward",
+            self.gsf_backward_momentum_recorder.gsf_pathlengths,
+            self.gsf_backward_momentum_recorder.gsf_momenta,
+            self.gsf_backward_momentum_recorder.gsf_cmp_data,
+            "tab:orange",
+        )
+
+        ax.legend()
+        ax.grid(which="both")
+
+        ax.set_ylabel("momentum [GeV]")
+        ax.set_xlabel("pathlength [mm]")
+
+        if requested_step < len(all_pls):
+            ax.vlines(x=all_pls[requested_step], ymin=ax.get_ylim()[0],
+                      ymax=ax.get_ylim()[1], alpha=0.5,
+                      color="tab:blue" if requested_step < len(self.gsf_forward_momentum_recorder.gsf_pathlengths) else "tab:orange")

@@ -5,6 +5,7 @@ import uproot
 
 
 def uproot_to_pandas(summary, states=None):
+    # print(summary.keys())
     exclude_from_summary_keys = [
         "measurementChi2",
         "outlierChi2",
@@ -19,7 +20,7 @@ def uproot_to_pandas(summary, states=None):
     summary_df = (
         ak.to_dataframe(summary.arrays(summary_keys), how="outer")
         .reset_index()
-        .drop(["entry", "subTraj_nr", "subentry"], axis=1)
+        .drop(["entry", "subentry"], axis=1)
     )  # .set_index(["event_nr", "multiTraj_nr"])
 
     summary_df = (
@@ -38,7 +39,7 @@ def uproot_to_pandas(summary, states=None):
         states_df = (
             ak.to_dataframe(states.arrays(states_keys), how="outer")
             .reset_index()
-            .drop(["entry", "subTraj_nr"], axis=1)
+            .drop(["entry", "track_nr"], axis=1)
             .rename({"subentry": "trackState_nr"}, axis=1)
         )  # .set_index(["event_nr","multiTraj_nr","trackState_nr"])
 
@@ -90,6 +91,7 @@ def uproot_to_pandas(summary, states=None):
 
 def select_particles_and_unify_index(*args, max_outliers=0, max_holes=0, min_measurements=9, max_eloss_first_surface=0.1):
     def select(df):
+        # print(df.keys())
         sdf = df[ (df.nOutliers <= max_outliers) & (df.nHoles <= max_holes) & (df.nMeasurements >= min_measurements) ].copy()
         
         if "t_delta_p_first_surface" in df.keys():
@@ -99,8 +101,9 @@ def select_particles_and_unify_index(*args, max_outliers=0, max_holes=0, min_mea
             
         return sdf
     
+
     dfs = tuple(select(df) for df in args)
-    dfs = tuple(df.set_index(["event_nr", "multiTraj_nr"]) for df in dfs)
+    dfs = tuple(df.set_index(["event_nr", "track_nr"]) for df in dfs)
 
     common_idx = dfs[0].index
     for df in dfs[1:]:

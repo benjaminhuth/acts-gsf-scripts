@@ -20,8 +20,6 @@ except:
 
 gsfOptions = {
     "maxComponents": snakemake.params["components"],
-    "abortOnError": False,
-    "disableAllMaterialHandling": False,
     "betheHeitlerApprox": acts.examples.AtlasBetheHeitlerApprox.loadFromFiles(
         str(low_bhapprox),
         str(high_bhapprox),
@@ -29,6 +27,7 @@ gsfOptions = {
     mergeMethodKey: MergeMethodEnum.maxWeight,
     "weightCutoff": snakemake.params["weight_cutoff"],
     "level": acts.logging.ERROR,
+    "mixtureReductionAlgorithm": acts.examples.MixtureReductionAlgorithm.KLDistance,
 }
 
 outputDir = Path(snakemake.output[0]).parent

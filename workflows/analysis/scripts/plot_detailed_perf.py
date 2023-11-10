@@ -80,9 +80,6 @@ for ax, key, r in zip(axes, keys, ranges):
 # axes[0].set_xlim(-71,11)
 fig1.tight_layout()
 
-# plt.show()
-# assert Falsedf
-
 
 # Residuals GSF vs GSF
 fig2, axes = plt.subplots(1, 2, figsize=figsize)

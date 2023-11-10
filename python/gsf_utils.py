@@ -340,19 +340,16 @@ class GsfEnvironment:
 
         gsfOptions = {
             "maxComponents": self.args["components"],
-            "abortOnError": False,
-            "disableAllMaterialHandling": False,
             "betheHeitlerApprox": acts.examples.AtlasBetheHeitlerApprox.loadFromFiles(
                 low_bhapprox,
                 high_bhapprox,
             ),
             # "componentMergeMethod": acts.examples.MixtureMergeMethod.maxWeight,
-            "finalReductionMethod": acts.examples.FinalReductionMethod.maxWeight,
+            "componentMergeMethod": acts.examples.ComponentMergeMethod.maxWeight,
             "weightCutoff": self.args["cutoff"],
-            "level": acts.logging.VERBOSE
-            if self.args["pick"] != -1 or self.args["verbose"]
-            else acts.logging.FATAL  # self.defaultLogLevel
+            "level": acts.logging.VERBOSE if self.args["pick"] != -1 or self.args["verbose"] else acts.logging.FATAL,
             # "minimalMomentumThreshold": 0.,
+            "mixtureReductionAlgorithm": acts.examples.MixtureReductionAlgorithm.KLDistance,
         }
 
         if not self.args["erroronly"]:
@@ -375,21 +372,12 @@ class GsfEnvironment:
         )
 
         for fitter in ["gsf", "kf"] if kalman else ["gsf"]:
-            trajectories = "trajectories_" + fitter
             tracks = "tracks_" + fitter
 
-            s.addAlgorithm(
-                acts.examples.TracksToTrajectories(
+            s.addWriter(
+                acts.examples.RootTrackSummaryWriter(
                     level=acts.logging.WARNING,
                     inputTracks=tracks,
-                    outputTrajectories=trajectories,
-                )
-            )
-
-            s.addWriter(
-                acts.examples.RootTrajectorySummaryWriter(
-                    level=acts.logging.WARNING,
-                    inputTrajectories=trajectories,
                     inputParticles=particles,
                     inputMeasurementParticlesMap="measurement_particles_map",
                     filePath=str(
@@ -402,9 +390,9 @@ class GsfEnvironment:
             no_states = "no_states" in self.args and self.args["no_states"]
             if not no_states:
                 s.addWriter(
-                    acts.examples.RootTrajectoryStatesWriter(
+                    acts.examples.RootTrackStatesWriter(
                         level=acts.logging.WARNING,
-                        inputTrajectories=trajectories,
+                        inputTracks=tracks,
                         inputParticles=particles,
                         inputSimHits="simhits",
                         inputMeasurementParticlesMap="measurement_particles_map",
@@ -423,8 +411,9 @@ class GsfEnvironment:
         del gsfConfig["betheHeitlerApprox"]
         del gsfConfig["level"]
 
-        # gsfConfig["componentMergeMethod"] = str(gsfConfig["componentMergeMethod"])
-        gsfConfig["finalReductionMethod"] = str(gsfConfig["finalReductionMethod"])
+        gsfConfig["mixtureReductionAlgorithm"] = str(gsfConfig["mixtureReductionAlgorithm"])
+        gsfConfig["componentMergeMethod"] = str(gsfConfig["componentMergeMethod"])
+        # gsfConfig["finalReductionMethod"] = str(gsfConfig["finalReductionMethod"])
         gsfConfig["low_bhapprox"] = low_bhapprox
         gsfConfig["high_bhapprox"] = high_bhapprox
 

@@ -10,7 +10,7 @@ from gsfanalysis.core_tail_utils import add_core_to_df_quantile
 
 import tqdm
 
-from utils import plot_binned_errorbar
+from utils_plotting import plot_binned_errorbar
 
 def add_columns(df):
     p_fit = df["t_charge"]*(1/df["eQOP_fit"])
@@ -65,31 +65,33 @@ summary_kf_mu = load(snakemake.input[2])
 
 print(summary_gsf.keys())
 
-fig, axes = plt.subplots(2,2, figsize=(10,7))
 
 eta_bins = np.linspace(-3,3,20)
 pt_bins = np.linspace(0,100,20)
-q=0.95
+q=0.999 #0.95
 
 def MAE(x, axis=None):
     return np.mean(np.abs(x), axis=axis)
 
 #STAT = np.std
 STAT = stats.rms
-STAT = MAE
+#STAT = MAE
 
 ylabels = [
     f"$\\mathrm{{{STAT.__name__.upper()}}}(q/p_{{true}} - q/p_{{fit}})\quad[MeV^{{-1}}]$",
     f"$\\mathrm{{{STAT.__name__.upper()}}}((p_{{true}} - p_{{fit}})/p_{{true}})$",
+    f"$\\mathrm{{{STAT.__name__.upper()}}}((p_{{true}} - p_{{fit}}))$",
 ]
-keys = ["res_eQOP_fit", "res_ePNORM_fit"]
+keys = ["res_eQOP_fit", "res_ePNORM_fit", "res_eP_fit"]
 
 bin_keys = ["t_eta", "t_pT"]
 xlabels = ["$\eta$", "$p_T$ [GeV]"]
 xbins = [eta_bins, pt_bins]
 
+fig, axes = plt.subplots(3,2, figsize=(10,7))
+
 for axrow, ylabel, key in zip(axes, ylabels, keys):
-    
+
     core_label = ylabel + "_core"
     summary_gsf = add_core_to_df_quantile(summary_gsf, key, q, core_label)
     summary_kf_e = add_core_to_df_quantile(summary_kf_e, key, q, core_label)
@@ -98,7 +100,7 @@ for axrow, ylabel, key in zip(axes, ylabels, keys):
     gsf_mask = summary_gsf[core_label]
     kfe_mask = summary_kf_e[core_label]
     kfmu_mask = summary_kf_mu[core_label]
-    
+
     for ax, bin_key, bins, xlabel in zip(axrow, bin_keys, xbins, xlabels):
         # fmt: off
         plot_binned_errorbar(ax, summary_gsf.loc[gsf_mask, bin_key], summary_gsf.loc[gsf_mask, key], bins, STAT,
@@ -110,7 +112,7 @@ for axrow, ylabel, key in zip(axes, ylabels, keys):
         # fmt: on
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        
+
         title = key.replace("res_e","").replace("_fit", "")
         ax.set_title(f"{title} resolution vs {xlabel[:6]}")
 
@@ -124,6 +126,15 @@ if snakemake.params["log"]:
 
 axes[0,1].legend()
 fig.tight_layout()
+
+fig2, ax = plt.subplots()
+plot_binned_errorbar(ax, summary_gsf.loc[gsf_mask, bin_key], summary_gsf.loc[gsf_mask, key], bins, STAT,
+                        color="tab:orange", label="GSF with electrons", fmt="none")
+plot_binned_errorbar(ax, summary_kf_e.loc[kfe_mask, bin_key], summary_kf_e.loc[kfe_mask, key], bins, STAT,
+                        color="tab:blue", label="KF with electrons", fmt="none")
+plot_binned_errorbar(ax, summary_kf_mu.loc[kfmu_mask, bin_key], summary_kf_mu.loc[kfmu_mask, key], bins, STAT,
+                        color="tab:cyan", label="KF with muons", fmt="none")
+
 
 if snakemake.config["plt_show"]:
     plt.show()

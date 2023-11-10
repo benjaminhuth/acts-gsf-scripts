@@ -22,14 +22,18 @@ class ProcessorWidget(QtWidgets.QWidget):
         self.layout.addWidget(self.canvas)
         self.setLayout(self.layout)
         
-        self.change_step(6)
+        self.is_active = False
         
     def change_step(self, step):
-        for ax in self.axes: 
-            ax.cla()
+        try:
+            for ax in self.axes:
+                ax.cla()
+        except:
+            self.axes.cla()
             
-        self.processor.draw(self.fig, self.axes, step)
-        self.canvas.draw()
+        if self.is_active:
+            self.processor.draw(self.fig, self.axes, step)
+            self.canvas.draw()
 
 
 
@@ -46,7 +50,6 @@ class LogWidget(QtWidgets.QTextEdit):
         self.setFont(font)
         self.setReadOnly(True)
         self.setLineWrapMode(QtWidgets.QTextEdit.NoWrap)
-        self.change_step(0)
         
     def change_step(self, step):
         if step >= len(self.logs):

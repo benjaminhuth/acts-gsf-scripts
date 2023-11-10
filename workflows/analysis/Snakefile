@@ -161,7 +161,8 @@ rule plot_sweep:
     output:
         "plots/sweep_components.pdf",
         "plots/sweep_weight_cutoff.pdf",
-        "plots/sweep_reduction_method.pdf"
+        "plots/sweep_component_merge_method.pdf",
+        "plots/sweep_reduction_algorithm.pdf",
     script:
         "scripts/plot_sweep.py"
 
