@@ -39,8 +39,8 @@ def uproot_to_pandas(summary, states=None):
         states_df = (
             ak.to_dataframe(states.arrays(states_keys), how="outer")
             .reset_index()
-            .drop(["entry", "track_nr"], axis=1)
-            .rename({"subentry": "trackState_nr"}, axis=1)
+            #.drop(["entry", "track_nr"], axis=1)
+            #.rename({"subentry": "trackState_nr"}, axis=1)
         )  # .set_index(["event_nr","multiTraj_nr","trackState_nr"])
 
         states_df = (
@@ -54,13 +54,13 @@ def uproot_to_pandas(summary, states=None):
         qop_loc = states_df.columns.get_loc("t_eQOP")
 
         summary_df["t_final_p"] = (
-            states_df.groupby(["event_nr", "multiTraj_nr"])
+            states_df.groupby(["event_nr", "track_nr"])
             .apply(lambda df: abs(1.0 / df.iloc[0, qop_loc]))
             .to_numpy()
         )
 
         summary_df["t_p_first_surface"] = (
-            states_df.groupby(["event_nr", "multiTraj_nr"])
+            states_df.groupby(["event_nr", "track_nr"])
             .apply(lambda df: abs(1.0 / df.iloc[-1, qop_loc]))
             .to_numpy()
         )

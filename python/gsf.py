@@ -59,6 +59,7 @@ parser.add_argument('--no_states', help="Don't write trackstates", default=False
 parser.add_argument('--no_kalman', help="Don't simulate kalman fitter", default=False, action="store_true")
 parser.add_argument('--skip_analysis', default=False, action="store_true")
 parser.add_argument('--seeding', default="smeared", choices=["smeared", "truth", "estimated"])
+parser.add_argument('--input', type=str)
 args = vars(parser.parse_args())
 # fmt: on
 
@@ -162,8 +163,8 @@ from short_analysis import short_analysis
 
 # pdfreport.close()
 
-if args["pick"] == -1:
-    short_analysis(outputDir)
+# if args["pick"] == -1:
+#     short_analysis(outputDir)
 
 # if args["plt_show"]:
 #     plt.show()

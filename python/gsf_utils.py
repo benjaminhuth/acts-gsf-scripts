@@ -130,77 +130,80 @@ class GsfEnvironment:
     def run_sequencer(self, s, outputDir: Path):
         u = acts.UnitConstants
 
-        (outputDir / "root").mkdir(parents=True, exist_ok=True)
-        (outputDir / "csv").mkdir(parents=True, exist_ok=True)
+        if not "input" in self.args:
+            (outputDir / "root").mkdir(parents=True, exist_ok=True)
+            (outputDir / "csv").mkdir(parents=True, exist_ok=True)
 
-        if self.args["detector"] == "telescope":
-            realistic_stddev = acts.Vector4(
-                0.0 * u.mm, 0.01 * u.mm, 0.01 * u.mm, 5.0 * u.ns
-            )
-        else:
-            realistic_stddev = acts.Vector4(
-                0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns
-            )
+            if self.args["detector"] == "telescope":
+                realistic_stddev = acts.Vector4(
+                    0.0 * u.mm, 0.01 * u.mm, 0.01 * u.mm, 5.0 * u.ns
+                )
+            else:
+                realistic_stddev = acts.Vector4(
+                    0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns
+                )
 
-        addParticleGun(
-            s,
-            MomentumConfig(
-                self.args["pmin"] * u.GeV, self.args["pmax"] * u.GeV, transverse=False
-            ),
-            EtaConfig(-0.01, 0.01)
-            if self.args["detector"] == "telescope"
-            else EtaConfig(-3, 3),
-            PhiConfig(-0.01, 0.01)
-            if self.args["detector"] == "telescope"
-            else PhiConfig(0, 2 * math.pi),
-            ParticleConfig(1, acts.PdgParticle.eElectron, randomizeCharge=False),
-            rnd=self.rnd,
-            vtxGen=acts.examples.GaussianVertexGenerator(
-                mean=acts.Vector4(0, 0, 0, 0),
-                stddev=realistic_stddev,
-            ),
-            multiplicity=self.args["particles"],
-            logLevel=self.defaultLogLevel,
-            outputDirRoot=outputDir,
-        )
-
-        if not self.args["fatras"]:
-            addGeant4(
+            addParticleGun(
                 s,
-                self.detector,
-                self.trackingGeometry,
-                self.field,
-                self.rnd,
+                MomentumConfig(
+                    self.args["pmin"] * u.GeV, self.args["pmax"] * u.GeV, transverse=False
+                ),
+                EtaConfig(-0.01, 0.01)
+                if self.args["detector"] == "telescope"
+                else EtaConfig(-3, 3),
+                PhiConfig(-0.01, 0.01)
+                if self.args["detector"] == "telescope"
+                else PhiConfig(0, 2 * math.pi),
+                ParticleConfig(1, acts.PdgParticle.eElectron, randomizeCharge=False),
+                rnd=self.rnd,
+                vtxGen=acts.examples.GaussianVertexGenerator(
+                    mean=acts.Vector4(0, 0, 0, 0),
+                    stddev=realistic_stddev,
+                ),
+                multiplicity=self.args["particles"],
                 logLevel=self.defaultLogLevel,
                 outputDirRoot=outputDir,
             )
-        else:
-            addFatras(
-                s,
-                self.trackingGeometry,
-                self.field,
-                rnd=self.rnd,
-                logLevel=self.defaultLogLevel,
-                preSelectParticles=None,
-                postSelectParticles=None,
-                enableInteractions=not self.args["disable_fatras_interactions"],
-            )
 
-        # s.addReader(
-        #     acts.examples.RootParticleReader(
-        #         level=self.defaultLogLevel,
-        #         particleCollection="particles_initial",
-        #         filePath=outputDir/"particles_initial.root",
-        #     )
-        # )
-        #
-        # s.addReader(
-        #     acts.examples.RootSimHitReader(
-        #         level=self.defaultLogLevel,
-        #         filePath=outputDir/"hits.root",
-        #         simHitCollection="simhits",
-        #     )
-        # )
+            if not self.args["fatras"]:
+                addGeant4(
+                    s,
+                    self.detector,
+                    self.trackingGeometry,
+                    self.field,
+                    self.rnd,
+                    logLevel=self.defaultLogLevel,
+                    outputDirRoot=outputDir,
+                )
+            else:
+                addFatras(
+                    s,
+                    self.trackingGeometry,
+                    self.field,
+                    rnd=self.rnd,
+                    logLevel=self.defaultLogLevel,
+                    preSelectParticles=None,
+                    postSelectParticles=None,
+                    enableInteractions=not self.args["disable_fatras_interactions"],
+                )
+        else:
+            inputDir = Path(self.args["input"])
+            s.addReader(
+                acts.examples.RootParticleReader(
+                    level=self.defaultLogLevel,
+                    particleCollection="particles_initial",
+                    filePath=inputDir/"particles.root",
+                )
+            )
+            s.addWhiteboardAlias("particles_input", "particles_initial")
+
+            s.addReader(
+                acts.examples.RootSimHitReader(
+                    level=self.defaultLogLevel,
+                    filePath=inputDir/"hits.root",
+                    simHitCollection="simhits",
+                )
+            )
 
         addParticleSelection(
             s,
@@ -376,7 +379,7 @@ class GsfEnvironment:
 
             s.addWriter(
                 acts.examples.RootTrackSummaryWriter(
-                    level=acts.logging.WARNING,
+                    level=acts.logging.ERROR,
                     inputTracks=tracks,
                     inputParticles=particles,
                     inputMeasurementParticlesMap="measurement_particles_map",
@@ -391,7 +394,7 @@ class GsfEnvironment:
             if not no_states:
                 s.addWriter(
                     acts.examples.RootTrackStatesWriter(
-                        level=acts.logging.WARNING,
+                        level=acts.logging.ERROR,
                         inputTracks=tracks,
                         inputParticles=particles,
                         inputSimHits="simhits",

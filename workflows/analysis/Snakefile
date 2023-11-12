@@ -187,6 +187,15 @@ rule plot_outliers_holes:
     script:
         "scripts/plot_outliers_holes.py"
 
+rule plot_cummulative_res:
+    input:
+        "tmp/1GeV_to_100GeV/gsf12/tracksummary_gsf.root",
+        "tmp/1GeV_to_100GeV/kf/tracksummary_kf.root",
+    output:
+        "plots/cummulative_res.pdf"
+    script:
+        "scripts/plot_cummulative_residual.py"
+
 rule all:
     default_target: True
     input:
@@ -201,3 +210,4 @@ rule all:
         "plots/correlation_res_eloss_first_surface.pdf",
         "plots/kf_muon_vs_gsf_electron.pdf",
         "plots/outliers_holes.pdf",
+        "plots/cummulative_res.pdf"

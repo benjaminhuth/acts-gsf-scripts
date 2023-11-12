@@ -1,4 +1,5 @@
 import sys
+import argparse
 
 from PyQt5 import QtCore, QtWidgets
 
@@ -10,7 +11,7 @@ from drawers import CsvZRDrawer, CsvXYDrawer
 
 
 class MainWindow(QtWidgets.QWidget):
-    def __init__(self, detector_file, input_file, *args, **kwargs):
+    def __init__(self, detector_file, lines, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
         self.setWindowTitle("GSF Debugger")
         
@@ -22,12 +23,11 @@ class MainWindow(QtWidgets.QWidget):
         ]
         
         logCollector = LogCollector()
-        
-        with open(input_file, 'r') as f:            
-            for line in f:
-                logCollector.parse_line(line)
-                for processor in processors:
-                    processor.parse_line_base(line)
+
+        for line in lines:
+            logCollector.parse_line(line)
+            for processor in processors:
+                processor.parse_line_base(line)
 
         # Assert all have the same step size
         for p in processors:
@@ -117,10 +117,19 @@ class MainWindow(QtWidgets.QWidget):
             w.change_step(self.slider.value())
 
 
-detector_file = "../detectors.csv"
-input_file = "../output.log"
+if __name__ == "__main__":
+    # Instantiate parser
+    parser = argparse.ArgumentParser(description='GSF Debugger')
+    parser.add_argument('detector', help="detector description as csv file", type=str)
+    parser.add_argument('--logfile', '-f', help="log file (if not given, stdin is read)", type=str)
+    args = vars(parser.parse_args())
 
+    if "logfile" in args:
+        with open(args["logfile"], 'r') as f:
+            lines = f.readlines()
+    else:
+        lines = sys.stdin.readlines()
 
-app = QtWidgets.QApplication(sys.argv)
-w = MainWindow(detector_file, input_file)
-app.exec_()
+    app = QtWidgets.QApplication(sys.argv)
+    w = MainWindow(args["detector"], lines)
+    app.exec_()

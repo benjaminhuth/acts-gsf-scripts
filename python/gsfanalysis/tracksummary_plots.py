@@ -311,7 +311,7 @@ def print_worst(tracksummary):
 
     for key in keys:
         idxs = tracksummary[key].argsort()
-        print(tracksummary.loc[idxs[:5], ["event_nr", "multiTraj_nr", key]])
+        print(tracksummary.loc[idxs[:5], ["event_nr", "track_nr", key]])
         print()
 
     print(
