@@ -1,6 +1,6 @@
 multiplicity: 1000
 particles_per_vertex: 1
 verbose: False
-sim_jobs: 3 #10
+sim_jobs: 10
 
 plt_show: False

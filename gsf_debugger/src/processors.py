@@ -7,64 +7,48 @@ from itertools import cycle
 import matplotlib.pyplot as plt
 import numpy as np
 
-class BaseProcessor:
-    def parse_line_base(self, line):
-        try:
-            self.parse_line(line)
-        except:
-            print("ERROR during parsing of line '{}'".format(line.rstrip()))
-            print(traceback.format_exc())
-            exit(1)
 
-
-class AverageTrackPlotter(BaseProcessor):
+class AverageTrackPlotter:
     def __init__(self, view_drawers, annotate_steps=False):
         self.annotate_steps = annotate_steps
 
-        self.fwd_steps = []
-        self.bwd_steps = []
-
-        self._current_steps = self.fwd_steps
+        self.positions = []
+        self.ibackward = None
 
         self.view_drawers = view_drawers
 
-    def parse_line(self, line):
-        if line.count("Do backward propagation") == 1:
-            self._current_steps = self.bwd_steps
+    def parse_step(self, step):
+        for line in step:
+            if line.count("Do backward propagation") == 1:
+                self.ibackward = len(self.positions)
 
-        elif line.count("at mean position") == 1:
-            line = re.sub(r"^.*position", "", line)
-            line = re.sub(r"with.*$", "", line)
+            elif line.count("at mean position") == 1:
+                line = re.sub(r"^.*position", "", line)
+                line = re.sub(r"with.*$", "", line)
 
-            self._current_steps.append(
-                np.array([float(item) for item in line.split()])
-            )
+                self.positions.append(
+                    np.array([float(item) for item in line.split()])
+                )
             
     def name(self):
         return "Average track"
             
     def get_figure_axes(self):
         return  plt.subplots(1, len(self.view_drawers))
-    
-    def number_steps(self):
-        return len(self.fwd_steps) + len(self.bwd_steps)
 
     def draw(self, fig, axes, step):
         for ax, drawer in zip(axes, self.view_drawers):
             ax = drawer.draw_detector(ax)
 
-        if step > self.number_steps():
-            return fig, axes
+        fwd_to_plot = self.positions[:self.ibackward]
+        bwd_to_plot = self.positions[self.ibackward:]
         
-        fwd_to_plot = []
-        bwd_to_plot = []
-        
-        if step < len(self.fwd_steps):
-            fwd_to_plot = self.fwd_steps[:step]
+        if step < len(fwd_to_plot):
+            fwd_to_plot = fwd_to_plot[:step]
+            bwd_to_plot = []
         else:
-            bwd_steps = step - len(self.fwd_steps)
-            fwd_to_plot = self.fwd_steps
-            bwd_to_plot = self.bwd_steps[:bwd_steps]
+            bwd_steps = step - len(fwd_to_plot)
+            bwd_to_plot = bwd_to_plot[:bwd_steps]
 
         positions = [fwd_to_plot, bwd_to_plot]
         names = ["forward", "backward"]
@@ -88,63 +72,14 @@ class AverageTrackPlotter(BaseProcessor):
         fig.tight_layout()
         return fig, axes
 
-
-class ComponentsPlotter(BaseProcessor):
+class ComponentsPlotter:
     def __init__(self, view_drawers):
-        self.component_positions = []
-        self.last_component = sys.maxsize
         self.current_direction = "forward"
-        self.current_step = 0
-        self.stages = []
+        self.steps = []
 
         self.view_drawers = view_drawers
-
-    def parse_line(self, line):
-        if line.count("Step is at surface") == 1:
-            surface_name = line[line.find("vol") :]
-
-            self.stages.append(
-                (
-                    surface_name,
-                    self.current_direction,
-                    self.current_step,
-                    copy.deepcopy(self.component_positions),
-                )
-            )
-            self.component_positions = []
-            self.last_component = sys.maxsize
-
-        elif line.count("Do backward propagation") == 1:
-            self.current_direction = "backward"
-            self.current_step = 0
-
-        elif re.match(r"^.*#[0-9]+\spos", line):
-            line = line.replace(",", "")
-            splits = line.split()
-
-            current_cmp = int(splits[3][1:])
-
-            pos = np.array([float(part) for part in splits[5:8]])
-
-            if current_cmp < self.last_component:
-                self.component_positions.append([pos])
-                self.current_step += 1
-            else:
-                self.component_positions[-1].append(pos)
-
-            self.last_component = current_cmp
-
-    def name(self):
-        return "Components"
-            
-    def get_figure_axes(self):
-        return  plt.subplots(1, len(self.view_drawers))
-    
-    def number_steps(self):
-        return sum([ len(s[3]) for s in self.stages])
-
-    def draw_stage(self, fig, axes, stage):
-        colors = [
+        
+        self.colors = [
             "red",
             "orangered",
             "orange",
@@ -159,90 +94,110 @@ class ComponentsPlotter(BaseProcessor):
             "magenta",
             "brown",
         ]
+
+    def parse_step(self, step):
+        surface_name = None
+        component_sets = []
+        components = []
         
-        target_surface, direction, abs_step, component_positions = stage
+        for line in step:
+            if line.count("Step is at surface") == 1:
+                surface_name = line[line.find("vol") :]
+
+            elif line.count("Do backward propagation") == 1:
+                self.current_direction = "backward"
+
+            elif re.match(r"^.*#[0-9]+\spos", line):
+                line = line.replace(",", "")
+                splits = line.split()
+
+                current_cmp = int(splits[3][1:])
+                pos = np.array([float(part) for part in splits[5:8]])
+                
+                # There can be two sets of components printed in a step
+                if current_cmp < len(components):
+                    component_sets.append(copy.deepcopy(components))
+                    components = []
+                    
+                components.append(pos)
+                
+        component_sets.append(copy.deepcopy(components))
+        assert len(component_sets) <= 2
         
-        base_step = abs_step - len(component_positions)
-        
-        fig.suptitle(
-            "Stepping {} towards {} ({} steps, starting from {})".format(
-                direction,
-                target_surface,
-                len(component_positions),
-                base_step,
+        self.steps.append(
+            (
+                surface_name,
+                self.current_direction,
+                component_sets,
             )
         )
 
-        color_positions_x = {color: [] for color in colors}
-        color_positions_z = {color: [] for color in colors}
-        color_positions_y = {color: [] for color in colors}
-        annotations = {color: [] for color in colors}
+    def name(self):
+        return "Components"
+            
+    def get_figure_axes(self):
+        return  plt.subplots(1, len(self.view_drawers))
+    
+    def number_steps(self):
+        return sum([ len(s[3]) for s in self.stages])
 
-        for step, components in enumerate(component_positions):
-            positions = np.vstack(components)
-
-            for i, (cmp_pos, color) in enumerate(zip(positions, cycle(colors))):
-                color_positions_x[color].append(cmp_pos[0])
-                color_positions_z[color].append(cmp_pos[2])
-                color_positions_y[color].append(cmp_pos[1])
-
-                annotations[color].append("{}-{}".format(step, i))
-
-        for color in colors:
-            color_positions = np.array(
-                [
-                    color_positions_x[color],
-                    color_positions_y[color],
-                    color_positions_z[color],
-                ]
-            ).T
-
-            for ax, drawer in zip(axes, self.view_drawers):
-                ax = drawer.plot(ax, color_positions, c=color, marker='x', lw=1)
-
-
-    def draw(self, fig, axes, requested_step):        
+    def draw(self, fig, axes, requested_step):
+        kSurface = 0
+        kDirection = 1
+        kComponents = 2
         
-        fig.suptitle("Nothing to draw\n")
         for ax, drawer in zip(axes, self.view_drawers):
             ax = drawer.draw_detector(ax)
-
-        # print("req",requested_step)
-        # print([s[2] for s in self.stages], flush=True)
-
-        for s in self.stages:
-            if s[2] >= requested_step:
-                self.draw_stage(fig, axes, s)
+            
+        if requested_step >= len(self.steps):
+            fig.suptitle("Step out of range")
+            return fig, axes
+            
+        n_components = len(self.steps[requested_step][kComponents][-1])
+        
+        # go back to last surface
+        start_surface = "<unknown>"
+        positions = []
+        for si in range(requested_step, 0, -1):
+            if len(self.steps[si][kComponents][-1]) != n_components:
+                fig.suptitle("error: component number mismatch")
+                return fig, axes
+            positions.append(self.steps[si][kComponents][-1])
+            
+            if self.steps[si][kSurface] is not None:
+                start_surface = self.steps[si][kSurface]
                 break
+                
+        fig.suptitle(
+            "Stepping {} with {} components from {}".format(
+                self.steps[requested_step][kDirection],
+                n_components,
+                start_surface.strip(),
+            )
+        )
+            
+        n_steps = len(positions)
+        if n_steps == 0:
+            return fig, axes
+            
+        try:
+            positions = np.array(positions)
+            assert len(positions.shape) == 3
+            
+            assert positions.shape[0] == n_steps
+            assert positions.shape[1] == n_components
+            assert positions.shape[2] == 3
+            
+            for i, color in zip(range(n_components), cycle(self.colors)):
+                for ax, drawer in zip(axes, self.view_drawers):
+                    ax = drawer.plot(ax, positions[:,i,:], c=color, marker='x', lw=1)
+        except:
+            fig.suptitle("Error drawing")
+            import pprint
+            pprint.pprint(positions)
 
         fig.tight_layout()
         return fig, axes
-
-
-
-
-
-class LogCollector(BaseProcessor):
-    def __init__(self):
-        self.loglines = []
-
-        self._current_lines = []
-
-    def parse_line(self, line):
-        
-        if line.count("at mean position") == 1:
-            self.loglines.append(copy.deepcopy(self._current_lines))
-            self._current_lines = []
-            
-        self._current_lines.append(line)
-
-
-    def name(self):
-        return "Log"
-
-    def number_steps(self):
-        return len(self.loglines)
-        
 
 
 
@@ -291,11 +246,6 @@ class GsfMomentumRecorder:
         elif re.match(r"^.*#[0-9]+\spos", line) and not self.gsf_started_backwards:
             line = line.replace(",", "")
             qop = float(line.split()[-3])
-            if abs(1.0 / qop) < 1:
-                p = qop
-                if not self.printed_qop_warning:
-                    print("WARNING: assume qop -> p because |1/qop| < 1")
-                    self.printed_qop_warning = True
             p = abs(1 / qop)
             w = float(line.split()[-7])
             self.gsf_current_step_cmp_momenta.append(p)
@@ -311,19 +261,34 @@ class GsfMomentumRecorder:
 
 
 
-class MomentumGraph(BaseProcessor):
+class MomentumGraph:
     def __init__(self):
-        self.gsf_forward_momentum_recorder = GsfMomentumRecorder()
-        self.gsf_backward_momentum_recorder = GsfMomentumRecorder()
-        self.gsf_current_momentum_recorder = self.gsf_forward_momentum_recorder
-
         self._flipped = False
+        
+        self.momenta = []
+        self.pathlenghts = []
+        self.iBackward = None
 
-    def parse_line(self, line):
-        if line.count("Do backward propagation") == 1:
-            self.gsf_current_momentum_recorder = self.gsf_backward_momentum_recorder
+    def parse_step(self, step):
+        mom = None
+        pl = None
+        
+        for line in step:
+            if line.count("Gsf step") == 1:
+                mom = float(line.split()[-4])
 
-        self.gsf_current_momentum_recorder.parse_line(line)
+            elif line.count("Step with size") == 1:
+                pl = float(line.split()[-2])
+                
+            if line.count("Do backward") == 1:
+                self.iBackward = len(self.momenta)
+        
+        if mom is None or pl is None:
+            return
+        
+        self.momenta.append(mom)
+        self.pathlenghts.append(pl)
+        
 
     def name(self):
         return "Momentum"
@@ -331,89 +296,30 @@ class MomentumGraph(BaseProcessor):
     def get_figure_axes(self):
         return plt.subplots()
 
-    def number_steps(self):
-        return len(self.gsf_forward_momentum_recorder.gsf_momenta) + len(self.gsf_backward_momentum_recorder.gsf_momenta)
-
-    def plot_components(self, ax, pathlengths, cmp_data, colors):
-        for pl, (momenta, weights), color in zip(pathlengths, cmp_data, cycle(colors)):
-            s = np.array(weights) * 0.9 + 0.1
-            ax.scatter(
-                pl * np.ones(len(momenta)),
-                momenta,
-                c=color,
-                s=s,
-                label="_nolegend_",
-            )
-
-    def plot(
-        self,
-        ax,
-        name,
-        gsf_pathlengths,
-        gsf_momenta,
-        gsf_cmp_data,
-        color
-    ):
-        # colors = ['red', 'orangered', 'orange', 'gold', 'olive', 'forestgreen', 'lime', 'teal', 'cyan', 'blue', 'indigo', 'magenta', 'brown']
-        # colors = ['forestgreen', 'lime', 'teal', 'indigo']
-        colors = ["black"]
-
-        # Shorten if necessary
-        if len(gsf_momenta) == len(gsf_pathlengths) + 1:
-            gsf_momenta = gsf_momenta[:-1]
-
-        # Ensure size is equal...
-        gsf_cmp_data = gsf_cmp_data[0 : len(gsf_momenta)]
-
-        # Scatter components
-        # self.plot_components(ax, gsf_pathlengths, gsf_cmp_data, colors)
-
-        if len(gsf_pathlengths) > 0:
-            ax.plot(
-                gsf_pathlengths,
-                gsf_momenta,
-                c=color,
-                label="GSF {}".format(name),
-            )
-
-        return ax
-
-
     def draw(self, fig, ax, requested_step):
-        if not self._flipped:
-            self.gsf_backward_momentum_recorder.gsf_pathlengths = -1*np.flip(np.array(self.gsf_backward_momentum_recorder.gsf_pathlengths))
-            self._flipped = True
-
-        all_pls = np.concatenate([self.gsf_forward_momentum_recorder.gsf_pathlengths, self.gsf_backward_momentum_recorder.gsf_pathlengths])
-
-
-        # Forward
-        ax = self.plot(
-            ax,
-            "forward",
-            self.gsf_forward_momentum_recorder.gsf_pathlengths,
-            self.gsf_forward_momentum_recorder.gsf_momenta,
-            self.gsf_forward_momentum_recorder.gsf_cmp_data,
-            "tab:blue",
-        )
-
-        # Backward
-        ax = self.plot(
-            ax,
-            "backward",
-            self.gsf_backward_momentum_recorder.gsf_pathlengths,
-            self.gsf_backward_momentum_recorder.gsf_momenta,
-            self.gsf_backward_momentum_recorder.gsf_cmp_data,
-            "tab:orange",
-        )
-
-        ax.legend()
-        ax.grid(which="both")
-
-        ax.set_ylabel("momentum [GeV]")
-        ax.set_xlabel("pathlength [mm]")
-
-        if requested_step < len(all_pls):
-            ax.vlines(x=all_pls[requested_step], ymin=ax.get_ylim()[0],
-                      ymax=ax.get_ylim()[1], alpha=0.5,
-                      color="tab:blue" if requested_step < len(self.gsf_forward_momentum_recorder.gsf_pathlengths) else "tab:orange")
+        fwd_mom, bwd_mom, fwd_pls, bwd_pls = [], [], [], []
+        
+        if self.iBackward is None:
+            fwd_mom = self.momenta
+            fwd_pls = self.pathlenghts
+        else:
+            fwd_mom = self.momenta[:self.iBackward]
+            fwd_pls = self.pathlenghts[:self.iBackward]
+            
+            bwd_mom = self.momenta[self.iBackward:]
+            bwd_pls = self.pathlenghts[self.iBackward:]
+            
+        fwd_pls = np.cumsum(fwd_pls)
+        ax.plot(fwd_pls, fwd_mom, color="tab:blue")
+        
+        bwd_pls = np.cumsum(bwd_pls)
+        bwd_pls = max(abs(bwd_pls)) + bwd_pls
+        ax.plot(bwd_pls, bwd_mom, color="tab:orange")
+        
+        if requested_step < self.iBackward:
+            ax.vlines(fwd_pls[requested_step], *ax.get_ylim(), alpha=0.5, color="tab:blue")
+        else:
+            s = requested_step - self.iBackward
+            if s < len(bwd_pls):
+                ax.vlines(bwd_pls[s], *ax.get_ylim(), alpha=0.5, color="tab:orange")
+        

@@ -153,19 +153,16 @@ pars = []
 components = [1, 2, 4, 8, 12, 16, 20, 24, 28, 32]
 print("Sweep components:", components)
 for c in components:
-    pars.append((c, 1.0e-6, "maxWeight", "KLDistanceQoP"))
+    pars.append((c, 1.0e-4, "maxWeight", "KLDistance"))
 
 # 1.e-6 already covered above
-weight_cutoff = [1.0e-8, 1.0e-4, 1.0e-2, 1.0e-1]
+weight_cutoff = [1.0e-8, 1.0e-6, 1.0e-2, 1.0e-1]
 print("Sweep weight cutoffs:", weight_cutoff)
 for w in weight_cutoff:
-    pars.append((12, w, "maxWeight", "KLDistanceQoP"))
+    pars.append((12, w, "maxWeight", "KLDistance"))
 
-pars.append((12, 1.0e-6, "mean", "KLDistanceQoP"))
-# pars.append((12, 1.0e-6, "mode", "KLDistanceQoP"))
-
-pars.append((12, 1.0e-6, "maxWeight", "weightCut"))
-pars.append((12, 1.0e-6, "maxWeight", "KLDistanceFull"))
+pars.append((12, 1.0e-4, "mean", "KLDistance"))
+pars.append((12, 1.0e-4, "maxWeight", "weightCut"))
 
 print("Grid size:", len(pars))
 

@@ -38,9 +38,9 @@ class ProcessorWidget(QtWidgets.QWidget):
 
 
 class LogWidget(QtWidgets.QTextEdit):
-    def __init__(self, log_processor, parent=None):
+    def __init__(self, steps, parent=None):
         super(LogWidget, self).__init__()
-        self.logs = log_processor.loglines[1:]
+        self.steps = steps
         
         font = QtGui.QFont()
         font.setFamily("monospace [Consolas]")
@@ -52,7 +52,7 @@ class LogWidget(QtWidgets.QTextEdit):
         self.setLineWrapMode(QtWidgets.QTextEdit.NoWrap)
         
     def change_step(self, step):
-        if step >= len(self.logs):
-            self.setText("Error")
+        if step >= len(self.steps):
+            self.setText(f"Error: cannot display log for step {step}")
         else:
-            self.setText("".join(self.logs[step]))
+            self.setText("".join(self.steps[step]))
