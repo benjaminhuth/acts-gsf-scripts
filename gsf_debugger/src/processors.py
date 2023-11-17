@@ -6,6 +6,7 @@ from itertools import cycle
 
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy
 
 
 class AverageTrackPlotter:
@@ -322,4 +323,102 @@ class MomentumGraph:
             s = requested_step - self.iBackward
             if s < len(bwd_pls):
                 ax.vlines(bwd_pls[s], *ax.get_ylim(), alpha=0.5, color="tab:orange")
+
+
+class BoundParametersProcessor:
+    def __init__(self, key):
+        assert key == "Filtered" or key == "Predicted"
+        self.key = key
+        self.pars_pattern = "^.*" + self.key + " parameters:(.*)$"
+        self.cov_preamble = "^.*" + self.key + " covariance:$"
         
+        self.step_data = []
+        
+    def parse_step(self, step):
+        weights = []
+        parameters = []
+        covs = []
+        for i in range(len(step)):
+            line = step[i]
+            
+            m = re.match(r"^.*weight: (.*), status:.*$", line)
+            if m:
+                weights.append(float(m[1]))
+            
+            if not (f"{self.key} parameters" in line or f"{self.key} covariance" in line):
+                continue
+            
+            m = re.match(self.pars_pattern, line)
+            if m:
+                pars = np.array([ float(f) for f in m[1].split() ])
+                assert len(pars) == 6
+                parameters.append(pars)
+                continue
+            
+            m = re.match(self.cov_preamble, line)
+            
+            if m:
+                cov = []
+                for j in range(i+1,i+7):
+                    cov.append([ float(f) for f in step[j].split() ])
+                covs.append(np.array(cov))
+                assert covs[-1].shape == (6,6)
+                i = i+6
+            
+        assert len(parameters) == len(covs)
+        assert len(weights) >= len(parameters)
+        if len(parameters) > 0:
+            self.step_data.append((weights[:len(parameters)], parameters, covs))
+        else:
+            self.step_data.append(None)
+
+    def name(self):
+        return f"{self.key} state"
+            
+    def get_figure_axes(self):
+        return plt.subplots(2, 3)
+
+    def draw(self, fig, axes, requested_step):
+        if requested_step >= len(self.step_data):
+            fig.suptitle("Error: Step out of bound")
+            return fig, axes
+        
+        if self.step_data[requested_step] is None:
+            fig.suptitle("nothing to draw, not on surface")
+            return fig, axes
+        
+        ws, pars, covs = self.step_data[requested_step]
+        
+        w_str = ", ".join([f"{w:.2f}" for w in ws])
+        fig.suptitle(f"draw {len(ws)} components\nweights: {w_str}")
+        
+        j_max = np.argmax(ws)
+        
+        for i, (ax, title) in enumerate(zip(axes.flatten(), ["l0", "l1", "theta", "phi", "qop", "t"])):
+            
+            cmps = [ (ws[j], pars[j][i], covs[j][i,i]) for j in range(len(ws)) ]
+            
+            # minx = min([ m[1]-3*np.sqrt(m[2]) for m in cmps ])
+            # maxx = max([ m[1]+3*np.sqrt(m[2]) for m in cmps ])
+            minx = cmps[j_max][1] - 3*np.sqrt(cmps[j_max][2])
+            maxx = cmps[j_max][1] + 3*np.sqrt(cmps[j_max][2])
+            
+            minx = min(minx, min([ m[1] for m in cmps if m[0] > 0.05 ]))
+            maxx = max(maxx, max([ m[1] for m in cmps if m[0] > 0.05 ]))
+            
+            # minx = pars[0][i]-3*covs[0]
+            mixture = lambda x: sum([ w * scipy.stats.norm(loc=mu, scale=np.sqrt(var)).pdf(x) for w, mu, var in cmps ])
+            
+            x = np.linspace(minx, maxx, 200)
+            y = sum([ w * scipy.stats.norm(loc=mu, scale=np.sqrt(var)).pdf(x) for w, mu, var in cmps ])
+            
+            if len(ws) > 1:
+                for w, mu, var in cmps:
+                    ax.plot(x, w * scipy.stats.norm(loc=mu, scale=np.sqrt(var)).pdf(x), lw=1)
+            
+            ax.plot(x, y, lw=3, color='black')
+            # ax.plot(x, [ scipy.stats.norm(loc=pars[0][i], scale=np.sqrt(covs[0][i,i])).pdf(xx) for xx in x])
+            ax.set_title(title)
+            
+        fig.tight_layout()
+        return fig, ax

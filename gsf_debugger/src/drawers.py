@@ -7,7 +7,7 @@ class ViewDrawer:
     """
     Base class for a drawer that encapsulates drawing the state with a certain view (x-y, z-r, ...)
     """
-
+    
     def draw_detector(self, ax):
         ax = self.draw_detector_impl(ax)
         ax.set_title("{}-{} plot".format(self.coor0, self.coor1))

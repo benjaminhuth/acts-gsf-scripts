@@ -19,8 +19,7 @@ from gsfanalysis.tracksummary_plots import *
 from gsfanalysis.core_tail_utils import *
 
 
-print("matplotlibrc file:",matplotlib.matplotlib_fname())
-print(plt.rcParams['font.family'], flush=True)
+plt.rcParams['font.family'] = "serif"
 
 
 def hist2d_smoothed(ax, a, b, bins, cmap, norm=None):
@@ -80,6 +79,7 @@ res_qop_cut = 5 # 1/MeV
 hline_args = dict(colors=["black"],linestyles=["dotted"],linewidths=[1,],)
 # fmt: on
 
+plt.rcParams['font.family'] = "serif"
 fig, axes = plt.subplots(2, 2, figsize=(10,7))
 
 binning_keys = ["t_pT", "t_eta"]

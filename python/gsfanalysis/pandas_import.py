@@ -3,8 +3,14 @@ import pandas as pd
 import numpy as np
 import uproot
 
+import datetime
+
+def log(msg):
+    print(datetime.datetime.now().strftime("%H:%M:%S"),"   INFO   ",msg,flush=True)
+
 
 def uproot_to_pandas(summary, states=None):
+    log("Start importing summary df")
     # print(summary.keys())
     exclude_from_summary_keys = [
         "measurementChi2",
@@ -36,34 +42,45 @@ def uproot_to_pandas(summary, states=None):
     else:
         states_keys = [k for k in states.keys() if not "gsf" in k]
 
-        states_df = (
-            ak.to_dataframe(states.arrays(states_keys), how="outer")
-            .reset_index()
-            #.drop(["entry", "track_nr"], axis=1)
-            #.rename({"subentry": "trackState_nr"}, axis=1)
-        )  # .set_index(["event_nr","multiTraj_nr","trackState_nr"])
-
+        log("Start importing states, states.arrays...")
+        arrays = states.arrays(states_keys)
+        
+        log("Do ak.to_dataframe...")
+        states_df = ak.to_dataframe(arrays, how="outer").reset_index()
+        
+        log("Done ak.to_dataframe, now sort...")
         states_df = (
             states_df.sort_values("event_nr", kind="stable").reset_index(drop=True).copy()
         )
-
-        def delta_p(df):
-            p = 1.0 / abs(df["t_eQOP"].to_numpy())
-            return p[0] - p[-1]
+        
+        # NaNs are non measurment states etc...
+        log("Done sorting, now drop nan...")
+        states_df = states_df[ ~pd.isna(states_df.t_x) ].copy()
 
         qop_loc = states_df.columns.get_loc("t_eQOP")
+        qop_flt_loc = states_df.columns.get_loc("eQOP_flt")
 
+        log("Now group...")
+        groupby = states_df.groupby(["event_nr", "track_nr"])
+
+        log("Done grouping")
         summary_df["t_final_p"] = (
-            states_df.groupby(["event_nr", "track_nr"])
-            .apply(lambda df: abs(1.0 / df.iloc[0, qop_loc]))
+            groupby.apply(lambda df: abs(1.0 / df.iloc[0, qop_loc]))
             .to_numpy()
         )
-
+        
+        summary_df["final_eP_flt"] = (
+            groupby.apply(lambda df: abs(1.0 / df.iloc[0, qop_flt_loc]))
+            .to_numpy()
+        )
+        
         summary_df["t_p_first_surface"] = (
-            states_df.groupby(["event_nr", "track_nr"])
-            .apply(lambda df: abs(1.0 / df.iloc[-1, qop_loc]))
+            groupby.apply(lambda df: abs(1.0 / df.iloc[-1, qop_loc]))
             .to_numpy()
         )
+        
+        assert (summary_df.t_final_p <= summary_df.t_p_first_surface).all()
+        assert (summary_df.t_p_first_surface <= summary_df.t_p).all()
 
         summary_df["t_delta_p"] = summary_df.t_final_p - summary_df.t_p
         summary_df["t_delta_p_first_surface"] = (
@@ -97,7 +114,7 @@ def select_particles_and_unify_index(*args, max_outliers=0, max_holes=0, min_mea
         if "t_delta_p_first_surface" in df.keys():
             sdf = sdf[ sdf["t_delta_p_first_surface"] <= max_eloss_first_surface ].copy()
         else:
-            print("WARNING: could not apply 'max_eloss_first_surface'. Key not present.")
+            print(f"WARNING: could not apply selection 't_delta_p_first_surface <= {max_eloss_first_surface}'. Key not present.")
             
         return sdf
     

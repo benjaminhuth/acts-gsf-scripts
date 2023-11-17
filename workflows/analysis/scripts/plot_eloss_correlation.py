@@ -4,28 +4,29 @@ from matplotlib.colors import LinearSegmentedColormap, to_rgba, LogNorm
 from gsfanalysis.pandas_import import *
 
 
-summary_gsf, _ = uproot_to_pandas(
-    uproot.open(f"{snakemake.input[0]}:tracksummary"),
-    uproot.open(f"{snakemake.input[1]}:trackstates"),
-)
+# summary_gsf, _ = uproot_to_pandas(
+#     uproot.open(f"{snakemake.input[0]}:tracksummary"),
+#     uproot.open(f"{snakemake.input[1]}:trackstates"),
+# )
+# 
+# summary_kf, _ = uproot_to_pandas(
+#     uproot.open(f"{snakemake.input[2]}:tracksummary"),
+#     uproot.open(f"{snakemake.input[3]}:trackstates"),
+# )
 
-summary_kf, _ = uproot_to_pandas(
-    uproot.open(f"{snakemake.input[2]}:tracksummary"),
-    uproot.open(f"{snakemake.input[3]}:trackstates"),
-)
+with open(snakemake.input[0], "rb") as f:
+    summary_gsf = pickle.load(f)
+    
+
+with open(snakemake.input[1], "rb") as f:
+    summary_kf = pickle.load(f)
 
 summary_gsf, summary_kf = select_particles_and_unify_index(
     summary_gsf.copy(), summary_kf.copy(), max_eloss_first_surface=np.inf,
 )
 
-# from gsfanalysis.tracksummary_plots import *
-#
-# for summary, name in zip(
-#     [summary_gsf, summary_kf], ["GSF", "KF"]
-# ):
-#     fig, ax = correlation_scatter_plot(summary, clip_res=(-8, 8))
-#     fig.suptitle(f"Correlation plots {name}")
-#     fig.tight_layout()
+assert len(summary_gsf) > 0
+assert len(summary_kf) > 0
 
 gsf_cmap = LinearSegmentedColormap.from_list(
     "gsf", [to_rgba("tab:orange", alpha=0), to_rgba("tab:orange", alpha=1)]
@@ -41,17 +42,19 @@ def plot(x_lambda, y_lambda, mask_lambda):
 
     sgsf = summary_gsf[mask_lambda(summary_gsf)]
     skf = summary_kf[mask_lambda(summary_kf)]
+    print("samples gsf:", len(sgsf))
+    print("samples kf:", len(skf))
 
     if True:
         gsf_plot = axes[0].hist2d(
             x_lambda(sgsf), y_lambda(sgsf), bins, norm=LogNorm(), cmap=gsf_cmap
         )
-        fig.colorbar(gsf_plot[3])
+        # fig.colorbar(gsf_plot[3])
 
         kf_plot = axes[1].hist2d(
             x_lambda(skf), y_lambda(skf), bins, norm=LogNorm(), cmap=kf_cmap
         )
-        fig.colorbar(kf_plot[3])
+        # fig.colorbar(kf_plot[3])
     else:
         axes[0].scatter(x_lambda(sgsf), y_lambda(sgsf), color="tab:orange")
 
@@ -70,18 +73,23 @@ def plot(x_lambda, y_lambda, mask_lambda):
 # Delta p vs res p #
 ####################
 
+clip=(-5,5)
+
+
 fig, axes = plot(
-    lambda df: np.clip(df.res_eP_fit, -4, 4),
-    lambda df: df.t_delta_p,
-    lambda df: abs(df.t_delta_p_first_surface) < 0.01,
+    # lambda df: np.clip(df.res_eP_fit, *clip),
+    # lambda df: df.t_delta_p,
+    lambda df: df.res_eP_fit[ df.res_eP_fit.between(*clip) ],
+    lambda df: df.t_delta_p[ df.res_eP_fit.between(*clip) ],
+    lambda df: abs(df.t_delta_p_first_surface) < 0.1,
 )
 
 fig.suptitle("$\Delta E$ vs. $res_p$")
 
 for ax in axes:
     ax.set_ylabel("$\Delta E \quad [GeV]$")
-    ax.set_xlim(-3, 3)
-    ax.set_ylim(-4.1, 0)
+    ax.set_xlim(*clip)
+    ax.set_ylim(-10, 0)
 
 fig.tight_layout()
 fig.savefig(snakemake.output[0])
@@ -91,8 +99,10 @@ fig.savefig(snakemake.output[0])
 ##################################
 
 fig2, axes2 = plot(
-    lambda df: np.clip(df.res_eP_fit, -4, 4),
-    lambda df: df.t_delta_p_first_surface,
+    lambda df: df.res_eP_fit[ df.res_eP_fit.between(*clip) ],
+    lambda df: df.t_delta_p[ df.res_eP_fit.between(*clip) ],
+    # lambda df: np.clip(df.res_eP_fit, -4, 4),
+    # lambda df: df.t_delta_p_first_surface,
     lambda df: abs(df.t_delta_p_first_surface) > 0.01,
 )
 
@@ -100,8 +110,8 @@ fig2.suptitle("$\Delta E$ on first surface vs. $res_p$")
 
 for ax in axes2:
     ax.set_ylabel("$\Delta E$ (after first surface) $\quad [GeV]$")
-    ax.set_xlim(-2, 2)
-    ax.set_ylim(-2.1, 0)
+    ax.set_xlim(*clip)
+    ax.set_ylim(-5, 0)
 
 fig2.tight_layout()
 fig2.savefig(snakemake.output[1])

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 configfile: "config/config.yaml"
 
 envvars:
@@ -6,7 +8,7 @@ envvars:
 SEEDING_DICT = {
     "1GeV_to_100GeV": "truth_estimated",
     "muons": "truth_estimated",
-    "4GeV": "smeared",
+    "10GeV": "smeared",
 }
 
 rule simulate_electrons:
@@ -17,6 +19,7 @@ rule simulate_electrons:
         n_events=1000,
         p_min=1,
         p_max=100,
+        abs_eta=3,
         p_transverse=True,
         uniform_eta=True,
         pdg=11,
@@ -24,16 +27,17 @@ rule simulate_electrons:
         "scripts/simulation.py"
         
     
-rule simulate_electrons_4GeV:
+rule simulate_electrons_10GeV:
     output:
-        "tmp/4GeV/hits.root",
-        "tmp/4GeV/particles.root",
+        "tmp/10GeV/hits.root",
+        "tmp/10GeV/particles.root",
     params:
-        n_events=20,
-        p_min=4,
-        p_max=4,
+        n_events=200,
+        p_min=10,
+        p_max=10,
+        abs_eta=3,
         p_transverse=False,
-        uniform_eta=False,
+        uniform_eta=True,
         pdg=11,
     script:
         "scripts/simulation.py"
@@ -47,6 +51,7 @@ rule simulate_muons:
         n_events=1000,
         p_min=1,
         p_max=100,
+        abs_eta=3,
         p_transverse=True,
         uniform_eta=True,
         pdg=13,
@@ -63,7 +68,7 @@ rule run_gsf_12cmps:
         "tmp/{dataset}/hits.root",
     params:
         components=12,
-        weight_cutoff=0.0001,
+        weight_cutoff=1e-6,
         seeding=lambda wildcards: SEEDING_DICT[wildcards.dataset],
     script:
         "scripts/run_gsf.py"
@@ -78,7 +83,7 @@ rule run_gsf_1cmp:
         "tmp/{dataset}/hits.root",
     params:
         components=1,
-        weight_cutoff=0.0001,
+        weight_cutoff=1e-6,
         seeding=lambda wildcards: SEEDING_DICT[wildcards.dataset],
     script:
         "scripts/run_gsf.py"
@@ -155,6 +160,27 @@ rule kf_muon_vs_gsf_electron:
         "scripts/plot_resolution_muon_vs_electron.py"
 
 
+rule pickle_summary:
+    input:
+        "tmp/{dataset}/{fitter1}/tracksummary_{fitter2}.root",
+        "tmp/{dataset}/{fitter1}/trackstates_{fitter2}.root"
+    output:
+        "tmp/{dataset}/{fitter1}/tracksummary_{fitter2}.pickle"
+    script:
+        "scripts/pickle.py"
+        
+rule momentum_last_surface:
+    input:
+        "tmp/10GeV/gsf12/tracksummary_gsf.pickle",
+        "tmp/10GeV/kf/tracksummary_kf.pickle",
+    output:
+        "plots/momentum_at_last_surface.pdf",
+        "plots/momentum_at_last_surface_center.pdf",
+        "plots/momentum_at_last_surface_bad_samples.pdf",
+    script:
+        "scripts/plot_momentum_last_surface.py"
+    
+        
 rule plot_sweep:
     input:
         "tmp/sweep_results.csv",
@@ -163,15 +189,15 @@ rule plot_sweep:
         "plots/sweep_weight_cutoff.pdf",
         "plots/sweep_component_merge_method.pdf",
         "plots/sweep_reduction_algorithm.pdf",
+        "plots/sweep_bh_approx.pdf",
+        "plots/sweep_overview.pdf",
     script:
         "scripts/plot_sweep.py"
 
 rule plot_eloss_correlation:
     input:
-        "tmp/4GeV/gsf12/tracksummary_gsf.root",
-        "tmp/4GeV/gsf12/trackstates_gsf.root",
-        "tmp/4GeV/kf/tracksummary_kf.root",
-        "tmp/4GeV/kf/trackstates_kf.root",
+        "tmp/10GeV/gsf12/tracksummary_gsf.pickle",
+        "tmp/10GeV/kf/tracksummary_kf.pickle",
     output:
         "plots/correlation_res_total_eloss.pdf",
         "plots/correlation_res_eloss_first_surface.pdf",
@@ -210,4 +236,6 @@ rule all:
         "plots/correlation_res_eloss_first_surface.pdf",
         "plots/kf_muon_vs_gsf_electron.pdf",
         "plots/outliers_holes.pdf",
-        "plots/cummulative_res.pdf"
+        "plots/cummulative_res.pdf",
+        "plots/momentum_at_last_surface.pdf",
+        "plots/sweep_bh_approx.pdf",

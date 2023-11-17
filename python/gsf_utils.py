@@ -130,7 +130,7 @@ class GsfEnvironment:
     def run_sequencer(self, s, outputDir: Path):
         u = acts.UnitConstants
 
-        if not "input" in self.args:
+        if (not "input" in self.args) or (self.args["input"] is None):
             (outputDir / "root").mkdir(parents=True, exist_ok=True)
             (outputDir / "csv").mkdir(parents=True, exist_ok=True)
 

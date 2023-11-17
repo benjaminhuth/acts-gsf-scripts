@@ -149,6 +149,13 @@ if args["skip_analysis"]:
 
 from default_analysis import default_analysis
 from short_analysis import short_analysis
+from gsfanalysis.pandas_import import *
+import uproot
+
+tracksummary, _ = uproot_to_pandas(uproot.open(str(outputDir/"root/tracksummary_gsf.root:tracksummary")),
+                                   uproot.open(str(outputDir/"root/trackstates_gsf.root:trackstates")))
+
+print(tracksummary.head(10)[["event_nr", "track_nr", "nMeasurements", "res_eQOP_fit", "res_eP_fit", "res_ePNORM_fit", "t_p", "t_delta_p", "t_delta_p_first_surface"]])
 
 # pdfreport = PdfPages(outputDir / "report.pdf")
 # main_direction = "x" if args["detector"] == "telescope" else "r"

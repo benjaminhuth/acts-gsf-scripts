@@ -43,6 +43,6 @@ ax.set_title("Cummulative Residual distribution")
 ax.set_xlabel("|res_qop|")
 ax.set_ylabel("% below")
 
-plt.show()
+# plt.show()
 fig.savefig(snakemake.output[0])
 

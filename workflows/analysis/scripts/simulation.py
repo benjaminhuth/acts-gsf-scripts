@@ -55,7 +55,7 @@ def run_geant4_sim(args, config):
         config["p_max"] * u.GeV,
         transverse=snakemake.params["p_transverse"],
     )
-    etaCfg = EtaConfig(-3, 3, uniform=snakemake.params["uniform_eta"])
+    etaCfg = EtaConfig(-config["abs_eta"], config["abs_eta"], uniform=snakemake.params["uniform_eta"])
     phiCfg = PhiConfig(0, 2 * math.pi)
     particleCfg = ParticleConfig(
         config["particles_per_vertex"],

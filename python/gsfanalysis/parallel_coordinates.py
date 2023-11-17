@@ -52,9 +52,15 @@ def parallel_coordinates(
                     else np.zeros(len(df))
                 )
             )
+
+            # We cannot have a zero range later, so set some arbitrary values
             if self.max == self.min:
-                self.min -= 0.1 * abs(self.min)
-                self.max += 0.1 * abs(self.max)
+                if self.max == 0:
+                    self.max = 0.1
+                    self.min = -0.1
+                else:
+                    self.min -= 0.1 * abs(self.min)
+                    self.max += 0.1 * abs(self.max)
             elif col in log_columns:
                 assert self.min > 0
                 assert self.max > 0
