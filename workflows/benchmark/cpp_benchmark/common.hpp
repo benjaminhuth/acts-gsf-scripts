@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Acts/ActsVersion.hpp"
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/Units.hpp"
@@ -21,13 +23,9 @@
 #include "ActsExamples/TruthTracking/TruthSeedSelector.hpp"
 #include "ActsExamples/TruthTracking/TruthTrackFinder.hpp"
 
-#include <filesystem>
-#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
-
-#include <boost/program_options.hpp>
 
 struct Hook : public Acts::GeometryIdentifierHook {
   std::map<uint64_t, std::vector<double>> map = {
@@ -58,33 +56,10 @@ struct Hook : public Acts::GeometryIdentifierHook {
 };
 
 using namespace Acts::UnitLiterals;
-namespace po = boost::program_options;
 
-int main(int argc, char **argv) {
-  std::string inputDir;
-  std::vector<std::string> oddFiles(1);
-  std::string rootMaterialMap;
-  std::string digiFile;
-  std::size_t maxComponents = 1;
-
-  po::options_description desc;
-  desc.add_options()("input", po::value(&inputDir), "input directory")(
-      "odd", po::value(&oddFiles.front()), "ODD XML file")(
-      "matmap", po::value(&rootMaterialMap), "ROOT material map")(
-      "digicfg", po::value(&digiFile), "Digitization config file")(
-      "components", po::value(&maxComponents), "Max components");
-
-  po::variables_map vm;
-  po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
-  po::notify(vm);
-
-  // Check if there are enough args or if --help is given
-  if (!vm.count("input") || !vm.count("odd") || !vm.count("matmap")) {
-    std::cerr << "Error in command line options!\n";
-    std::cerr << desc << "\n";
-    return 1;
-  }
-
+template<typename make_fitter_t>
+void run(const make_fitter_t &fitter, const std::string &inputDir, const std::vector<std::string> &oddFiles, 
+         const std::string &rootMaterialMap, const std::string &digiFile) {
   auto bfield =
       std::make_shared<Acts::ConstantBField>(Acts::Vector3{0., 0., 2._T});
 
@@ -107,6 +82,7 @@ int main(int argc, char **argv) {
   seqCfg.events = -1;
   seqCfg.numThreads = 1;
   seqCfg.trackFpes = false;
+  seqCfg.outputDir = ".";
 
   ActsExamples::Sequencer s(seqCfg);
 
@@ -141,18 +117,6 @@ int main(int argc, char **argv) {
     s.addReader(std::make_shared<ActsExamples::CsvSimHitReader>(
         cfg, Acts::Logging::INFO));
   }
-
-  // {
-  //   ActsExamples::CsvMeasurementReader::Config cfg;
-  //   cfg.inputDir = inputDir;
-  //   cfg.inputSimHits = kHits;
-  //   cfg.outputMeasurements = kMeasurements;
-  //   cfg.outputSourceLinks = kSourceLinks;
-  //   cfg.outputMeasurementSimHitsMap = kMeasurmentSimhitMap;
-  //   cfg.outputMeasurementParticlesMap = kMeasurmentParticleMap;
-  //   s.addReader(std::make_shared<ActsExamples::CsvMeasurementReader>(
-  //       cfg, Acts::Logging::INFO));
-  // }
 
   {
     ActsExamples::DigitizationConfig cfg(
@@ -196,23 +160,8 @@ int main(int argc, char **argv) {
     s.addAlgorithm(std::make_shared<ActsExamples::TruthTrackFinder>(
         cfg, Acts::Logging::INFO));
   }
-
+  
   {
-    double weightCutoff = 1.e-4;
-    auto logger = Acts::getDefaultLogger("Gsf", Acts::Logging::ERROR);
-
-    const std::filesystem::path base =
-        "/home/benjamin/Documents/athena/Tracking/TrkFitter/"
-        "TrkGaussianSumFilter/Data/";
-
-    auto bhapprox = ActsExamples::BetheHeitlerApprox::loadFromFiles(
-        base / "GeantSim_LT01_cdf_nC6_O5.par",
-        base / "GeantSim_GT01_cdf_nC6_O5.par");
-
-    auto gsf = ActsExamples::makeGsfFitterFunction(
-        trkGeo, bfield, bhapprox, maxComponents, weightCutoff,
-        Acts::MixtureReductionMethod::eMaxWeight, false, false, *logger);
-
     ActsExamples::TrackFittingAlgorithm::Config cfg;
     cfg.inputProtoTracks = kProtoTracks;
     cfg.inputInitialTrackParameters = kParameters;
@@ -220,11 +169,11 @@ int main(int argc, char **argv) {
     cfg.inputSourceLinks = kSourceLinks;
     cfg.calibrator = std::make_shared<ActsExamples::PassThroughCalibrator>();
     cfg.outputTracks = "tracks";
-    cfg.fit = gsf;
+    cfg.fit = fitter(trkGeo, bfield);
 
     s.addAlgorithm(std::make_shared<ActsExamples::TrackFittingAlgorithm>(
         cfg, Acts::Logging::INFO));
   }
-
+  
   s.run();
 }

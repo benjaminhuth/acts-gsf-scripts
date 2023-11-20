@@ -74,21 +74,24 @@ def MAE(x, axis=None):
     return np.mean(np.abs(x), axis=axis)
 
 #STAT = np.std
-STAT = stats.rms
-#STAT = MAE
+#STAT = stats.rms
+STAT = MAE
 
 ylabels = [
     f"$\\mathrm{{{STAT.__name__.upper()}}}(q/p_{{true}} - q/p_{{fit}})\quad[MeV^{{-1}}]$",
     f"$\\mathrm{{{STAT.__name__.upper()}}}((p_{{true}} - p_{{fit}})/p_{{true}})$",
     f"$\\mathrm{{{STAT.__name__.upper()}}}((p_{{true}} - p_{{fit}}))$",
 ]
-keys = ["res_eQOP_fit", "res_ePNORM_fit", "res_eP_fit"]
+keys = ["res_eQOP_fit"] #, "res_ePNORM_fit", "res_eP_fit"]
 
 bin_keys = ["t_eta", "t_pT"]
 xlabels = ["$\eta$", "$p_T$ [GeV]"]
 xbins = [eta_bins, pt_bins]
 
-fig, axes = plt.subplots(3,2, figsize=(10,7))
+fig, axes = plt.subplots(len(keys),len(bin_keys), figsize=(5*len(bin_keys),4*len(keys)))
+
+if len(axes.shape) == 1:
+    axes = axes[np.newaxis, :]
 
 for axrow, ylabel, key in zip(axes, ylabels, keys):
 
@@ -127,13 +130,13 @@ if snakemake.params["log"]:
 axes[0,1].legend()
 fig.tight_layout()
 
-fig2, ax = plt.subplots()
-plot_binned_errorbar(ax, summary_gsf.loc[gsf_mask, bin_key], summary_gsf.loc[gsf_mask, key], bins, STAT,
-                        color="tab:orange", label="GSF with electrons", fmt="none")
-plot_binned_errorbar(ax, summary_kf_e.loc[kfe_mask, bin_key], summary_kf_e.loc[kfe_mask, key], bins, STAT,
-                        color="tab:blue", label="KF with electrons", fmt="none")
-plot_binned_errorbar(ax, summary_kf_mu.loc[kfmu_mask, bin_key], summary_kf_mu.loc[kfmu_mask, key], bins, STAT,
-                        color="tab:cyan", label="KF with muons", fmt="none")
+# fig2, ax = plt.subplots()
+# plot_binned_errorbar(ax, summary_gsf.loc[gsf_mask, bin_key], summary_gsf.loc[gsf_mask, key], bins, STAT,
+#                         color="tab:orange", label="GSF with electrons", fmt="none")
+# plot_binned_errorbar(ax, summary_kf_e.loc[kfe_mask, bin_key], summary_kf_e.loc[kfe_mask, key], bins, STAT,
+#                         color="tab:blue", label="KF with electrons", fmt="none")
+# plot_binned_errorbar(ax, summary_kf_mu.loc[kfmu_mask, bin_key], summary_kf_mu.loc[kfmu_mask, key], bins, STAT,
+#                         color="tab:cyan", label="KF with muons", fmt="none")
 
 
 if snakemake.config["plt_show"]:

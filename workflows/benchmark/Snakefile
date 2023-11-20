@@ -13,12 +13,15 @@ rule simulated_particles:
     script:
         "scripts/make_data.py"
         
-rule make_cpp_benchmark:
+rule make_benchmarks:
     input:
-        "cpp_benchmark/main.cpp",
+        "cpp_benchmark/common.hpp",
+        "cpp_benchmark/gsf.cpp",
+        "cpp_benchmark/kf.cpp",
         "cpp_benchmark/CMakeLists.txt"
     output:
-        "tmp/build/gsf_benchmark"
+        "tmp/build/gsf_benchmark",
+        "tmp/build/kf_benchmark",
     shell:
         """
         mkdir -p tmp/build
@@ -30,13 +33,14 @@ rule make_cpp_benchmark:
         make
         """
 
-rule perf_cpp_benchmark:
+rule perf_gsf_benchmark:
     input:
         "tmp/event000000000-particles_initial.csv",
         "tmp/event000000000-hits.csv",
         "tmp/build/gsf_benchmark",
     output:
-        "tmp/{cmps}/perf.data"
+        "tmp/{cmps}/perf.data",
+        "tmp/{cmps}/timing.tsv",
     shell:
         """
         perf record --call-graph=dwarf,65528 -F1000 --output=tmp/{wildcards.cmps}/perf.data \
@@ -46,6 +50,24 @@ rule perf_cpp_benchmark:
                 --odd $ODD_DIR/xml/OpenDataDetector.xml \
                 --matmap $ODD_DIR/data/odd-material-maps.root \
                 --digicfg config/odd-digi-smearing-config.json
+        mv timing.tsv tmp/{wildcards.cmps}/timing.tsv
+        """
+        
+rule kf_benchmark:
+    input:
+        "tmp/event000000000-particles_initial.csv",
+        "tmp/event000000000-hits.csv",
+        "tmp/build/kf_benchmark",
+    output:
+        "tmp/kf_timing.tsv",
+    shell:
+        """
+        tmp/build/gsf_benchmark \
+            --input tmp \
+            --odd $ODD_DIR/xml/OpenDataDetector.xml \
+            --matmap $ODD_DIR/data/odd-material-maps.root \
+            --digicfg config/odd-digi-smearing-config.json
+        mv timing.tsv tmp/kf_timing.tsv
         """
 
 rule get_flamegraph:
@@ -103,11 +125,21 @@ rule plot_samples_vs_components:
         "plots/components_vs_samples.pdf"
     script:
         "scripts/component_time_plot.py"
-        
+
+rule plot_gsf_vs_kf:
+    input:
+        "tmp/event000000000-particles_initial.csv",
+        "tmp/kf_timing.tsv",
+        expand("tmp/{c}/timing.tsv", c=[1,2,4,8,12,16,20,24,28,32]),
+    output:
+        "plots/gsf_vs_kf.pdf",
+    script:
+        "scripts/plot_timing_gsf_vs_kf.py"
 
 rule all:
+    default_target: True
     input:
         "plots/flamegraph_12.png",
         "plots/piechart_12.pdf",
-        "plots/components_vs_samples.pdf"
-    default_target: True
+        "plots/components_vs_samples.pdf",
+        "plots/gsf_vs_kf.pdf",

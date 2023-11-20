@@ -93,6 +93,7 @@ rule run_kf:
     output:
         "tmp/{dataset}/kf/tracksummary_kf.root",
         "tmp/{dataset}/kf/trackstates_kf.root",
+        "tmp/{dataset}/kf/timing.tsv",
     input:
         "tmp/{dataset}/particles.root",
         "tmp/{dataset}/hits.root",
@@ -190,7 +191,11 @@ rule plot_sweep:
         "plots/sweep_component_merge_method.pdf",
         "plots/sweep_reduction_algorithm.pdf",
         "plots/sweep_bh_approx.pdf",
+        "plots/sweep_momentum_cutoff.pdf",
         "plots/sweep_overview.pdf",
+    params:
+        fix_components=12,
+        fix_weight_cutoff=1.e-6,
     script:
         "scripts/plot_sweep.py"
 

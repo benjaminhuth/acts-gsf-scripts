@@ -5,16 +5,15 @@ from matplotlib.colors import ListedColormap
 import matplotlib
 from gsfanalysis.parallel_coordinates import parallel_coordinates
 
-n_particles = 10000  # TODO make this more generic
 
 
 sweep_result = pd.read_csv(snakemake.input[0])
 
 # fmt: off
-sweep_result["timing [ms]"] = 1e3 * sweep_result["timing"] / sweep_result["n_tracks"]
-sweep_result["outliers [%]"] = 100.0 * sweep_result["n_outliers"] / sweep_result["n_tracks"]
-sweep_result["failures [‰]"] = 1000.0 * (n_particles - sweep_result["n_tracks"]) / n_particles
-sweep_result["holes [%]"] = 100.0 * sweep_result["n_holes"] / n_particles
+sweep_result["timing [ms]"] = 1e3 * sweep_result.timing / sweep_result.n_particles
+sweep_result["outliers [%]"] = 100.0 * sweep_result.n_outliers / sweep_result.n_particles
+sweep_result["failures [‰]"] = 1000.0 * sweep_result.n_failures / sweep_result.n_particles
+sweep_result["holes [%]"] = 100.0 * sweep_result.n_holes / sweep_result.n_particles
 # fmt: on
 
 sweep_result = sweep_result.rename(
@@ -39,7 +38,8 @@ sweep_result = sweep_result.rename(
         "weight_cutoff": "weight cutoff",
         "component_merge_method": "component merging",
         "bethe_heitler_approx": "BH Approx",
-        "mixture_reduction": "mixture reduction"
+        "mixture_reduction": "mixture reduction",
+        "momentum_cutoff": "momentum cutoff",
     }
 )
 
@@ -57,24 +57,30 @@ columns = [
 
 # The default configuration that we vary each
 fix = {
-    "components": 12,
-    "weight cutoff": 1e-6,
+    "components": snakemake.params["fix_components"],
+    "weight cutoff": snakemake.params["fix_weight_cutoff"],
     "component merging": "maxWeight",
     "mixture reduction": "KLDistance",
     "BH Approx": "GeantSim_CDF",
+    "momentum cutoff": 0.1,
 }
 
+pd.set_option('display.max_rows', 500)
+pd.set_option('display.max_columns', 500)
+pd.set_option('display.width', 1000)
+# print(sweep_result[fix.keys()].head(30))
 
-def make_coordinates_plot(first_col : str, cmap="plasma", figsize=(10, 5)):
-    fix_parameters = { k: v for k, v in fix.items() if k != first_col }
-    
+
+def make_coordinates_plot(first_col : str, cmap="plasma", figsize=(10, 5)):    
     conditions = np.ones(len(sweep_result)).astype(bool)
-    for key, val in fix_parameters.items():
-        conditions = conditions & (sweep_result[key] == val)
+    for key, val in fix.items():
+        if key != first_col:
+            conditions = conditions & (sweep_result[key] == val)
+    
+    print(first_col.upper())    
     
     sweep_df = sweep_result[conditions].copy().sort_values([first_col], ascending=False).drop_duplicates(first_col)
     
-    print(first_col.upper())
     print(sweep_df)
     print()
     
@@ -129,6 +135,11 @@ fig4.suptitle(f"Performance metrics for varying mixture reduction algorithms")
 fig4.tight_layout()
 fig4.savefig(snakemake.output[4])
 
+# Momentum cutoff
+fig5, ax = make_coordinates_plot("momentum cutoff", figsize=(10, 3), cmap=cmap)
+fig5.suptitle(f"Performance metrics for varying momentum cutoffs")
+fig5.tight_layout()
+fig5.savefig(snakemake.output[5])
 
 
 
@@ -136,7 +147,7 @@ fig4.savefig(snakemake.output[4])
 kMode = "res q/p mode"
 kQ95 = "res q/p Q95"
 
-fig, ax = plt.subplots(figsize=(10,6))
+fig, ax = plt.subplots(figsize=(10,4))
 ax.errorbar(sweep_result[kMode], sweep_result[kQ95],
             xerr=sweep_result[kMode + "_err"],
             yerr=sweep_result[kQ95 + "_err"],
@@ -163,7 +174,7 @@ ax.errorbar([ chosen[kMode] ], [ chosen[kQ95] ],
 ax.legend(loc="upper right")
 ax.set_title("GSF performance metrics for different configurations")
 fig.tight_layout()
-fig.savefig(snakemake.output[5])
+fig.savefig(snakemake.output[6])
 
 
 # maybe show

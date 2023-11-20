@@ -19,12 +19,15 @@ with open(snakemake.input[1], "rb") as f:
 assert len(summary_gsf) > 0
 assert len(summary_kf) > 0
 
-plt.figure()
-_, bins, _ = plt.hist(summary_gsf.max_material_fwd, bins=100, range=(0,1.0), label="max", histtype="step")
-_, bins, _ = plt.hist(summary_gsf.sum_material_fwd, bins=bins, range=(0,1.0), label="sum", histtype="step")
-plt.legend()
-plt.yscale('log')
-plt.title("material whole eta")
+try:
+    plt.figure()
+    _, bins, _ = plt.hist(summary_gsf.max_material_fwd, bins=100, range=(0,1.0), label="max", histtype="step")
+    _, bins, _ = plt.hist(summary_gsf.sum_material_fwd, bins=bins, range=(0,1.0), label="sum", histtype="step")
+    plt.legend()
+    plt.yscale('log')
+    plt.title("material whole eta")
+except:
+    print("missing material column")
 
 p_bins=np.linspace(0,13,130)
 
@@ -51,12 +54,15 @@ plt.hist(summary_gsf_center.final_eP_flt, bins=p_bins, color="tab:orange", histt
 plt.yscale('log')
 plt.savefig(snakemake.output[1])
 
-plt.figure()
-_, bins, _ = plt.hist(summary_gsf_center.max_material_fwd, bins=100, range=(0,1.0), label="max", histtype="step")
-_, bins, _ = plt.hist(summary_gsf_center.sum_material_fwd, bins=bins, range=(0,1.0), label="sum", histtype="step")
-plt.legend()
-plt.yscale('log')
-plt.title("material |eta| < 1")
+try:
+    plt.figure()
+    _, bins, _ = plt.hist(summary_gsf_center.max_material_fwd, bins=100, range=(0,1.0), label="max", histtype="step")
+    _, bins, _ = plt.hist(summary_gsf_center.sum_material_fwd, bins=bins, range=(0,1.0), label="sum", histtype="step")
+    plt.legend()
+    plt.yscale('log')
+    plt.title("material |eta| < 1")
+except:
+    print("missing material column")
 
 res_pnorm = abs(summary_gsf_center.t_final_p - summary_gsf_center.final_eP_flt) / summary_gsf_center.t_final_p
 remove_good = summary_gsf_center[ res_pnorm > 0.05 ].copy()
@@ -69,40 +75,43 @@ plt.hist(remove_good.t_final_p, bins=bins, color="black", histtype="step", label
 plt.hist(remove_good.final_eP_flt, bins=bins, color="tab:orange", histtype="step", label="GSF (flt)")
 plt.savefig(snakemake.output[2])
 
-plt.figure()
-H, x_edges, y_edges = np.histogram2d(remove_good.final_eP_flt, remove_good.max_material_fwd, bins=(p_bins, np.linspace(0,0.5,20)))
+try:
+    plt.figure()
+    H, x_edges, y_edges = np.histogram2d(remove_good.final_eP_flt, remove_good.max_material_fwd, bins=(p_bins, np.linspace(0,0.5,20)))
 
-H = (y_edges[:-1] + np.diff(y_edges))*H
-print(H)
+    H = (y_edges[:-1] + np.diff(y_edges))*H
+    print(H)
 
-plt.plot(x_edges[:-1]+np.diff(x_edges), np.mean(H, axis=1))
-plt.xlim(0,8.5)
-plt.ylim(0,2)
-plt.xlabel("final p flt")
-plt.ylabel("< x/x0 max >")
+    plt.plot(x_edges[:-1]+np.diff(x_edges), np.mean(H, axis=1))
+    plt.xlim(0,8.5)
+    plt.ylim(0,2)
+    plt.xlabel("final p flt")
+    plt.ylabel("< x/x0 max >")
 
 
-keys = ["nStates", "nMeasurements", "nOutliers", "nHoles", "chi2Sum", "max_material_fwd", "sum_material_fwd"]
+    keys = ["nStates", "nMeasurements", "nOutliers", "nHoles", "chi2Sum", "max_material_fwd", "sum_material_fwd"]
 
-print("keep good mean")
-print(keep_good[keys].mean())
-print("")
+    print("keep good mean")
+    print(keep_good[keys].mean())
+    print("")
 
-print("remove good mean")
-print(remove_good[keys].mean())
-print("")
+    print("remove good mean")
+    print(remove_good[keys].mean())
+    print("")
 
-print("remove good, between 0.75 and 0.95")
-print(remove_good[ remove_good.final_eP_flt.between(0.75,0.95) ][keys].mean())
-print("")
+    print("remove good, between 0.75 and 0.95")
+    print(remove_good[ remove_good.final_eP_flt.between(0.75,0.95) ][keys].mean())
+    print("")
 
-print("remove good, between 3.8 and 4.1")
-print(remove_good[ remove_good.final_eP_flt.between(3.8,4.1) ][keys].mean())
-print("")
+    print("remove good, between 3.8 and 4.1")
+    print(remove_good[ remove_good.final_eP_flt.between(3.8,4.1) ][keys].mean())
+    print("")
 
-print("remove good, between 8 and 9")
-print(remove_good[ remove_good.final_eP_flt.between(8,9) ][keys].mean())
-print("")
+    print("remove good, between 8 and 9")
+    print(remove_good[ remove_good.final_eP_flt.between(8,9) ][keys].mean())
+    print("")
+except:
+    print("missing material column")
 
 # # r=[0.75,0.95]
 # r=[3.8,4.1]

@@ -20,19 +20,12 @@ bha = acts.examples.AtlasBetheHeitlerApprox.loadFromFiles(
 #     highLimit=0.2,
 # )
 
-MergeMethodEnum = None
-try:
-    MergeMethodEnum = acts.examples.ComponentMergeMethod
-    mergeMethodKey = "componentMergeMethod"
-except:
-    MergeMethodEnum = acts.examples.FinalReductionMethod
-    mergeMethodKey = "finalReductionMethod"
-
 gsfOptions = {
     "maxComponents": snakemake.params["components"],
     "betheHeitlerApprox": bha,
-    mergeMethodKey: MergeMethodEnum.maxWeight,
+    "componentMergeMethod": acts.examples.ComponentMergeMethod.maxWeight,
     "weightCutoff": snakemake.params["weight_cutoff"],
+    "momentumCutoff": 0.1,
     "level": acts.logging.ERROR,
     "mixtureReductionAlgorithm": acts.examples.MixtureReductionAlgorithm.KLDistance,
 }

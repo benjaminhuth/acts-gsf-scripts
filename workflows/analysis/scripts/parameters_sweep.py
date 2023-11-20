@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import bootstrap
+import uproot
 
 from gsfanalysis.pandas_import import *
 from gsfanalysis.core_tail_utils import *
@@ -31,13 +32,17 @@ bethe_heitler_approxes = {
     "KL_C6_O5": ("BetheHeitler_kl_nC6_O5.par", "BetheHeitler_kl_nC6_O5.par", 0.1, 0.2),
 }
 
+particles = ak.to_dataframe(
+            uproot.open(f"{snakemake.input[0]}:particles").arrays()
+        ).reset_index(drop=True)
+particles = particles[ particles.event_id < snakemake.params.n_events ].copy()
+
 
 def run_configuration(pars):
-    components, weight_cutoff, componentMergeMethod, reductionAlgorithm, bha = pars
-    print(f"-> cmps: {components}, wc: {weight_cutoff}, mm: {componentMergeMethod}, ra: {reductionAlgorithm}")
+    print("Run",pars)
 
     configDir = Path("./config")
-    lowPars, highPars, lowLimit, highLimit = bethe_heitler_approxes[bha]
+    lowPars, highPars, lowLimit, highLimit = bethe_heitler_approxes[pars["bha"]]
     lowPars = configDir / lowPars
     highPars = configDir / highPars
     
@@ -45,17 +50,18 @@ def run_configuration(pars):
     assert highPars.exists()
 
     opts = {
-        "maxComponents": components,
+        "maxComponents": pars["components"],
         "betheHeitlerApprox": acts.examples.AtlasBetheHeitlerApprox.loadFromFiles(
             lowParametersPath=str(lowPars),
             highParametersPath=str(highPars),
             lowLimit=lowLimit,
             highLimit=highLimit,
         ),
-        "componentMergeMethod": vars(acts.examples.ComponentMergeMethod)[componentMergeMethod],
-        "weightCutoff": weight_cutoff,
+        "componentMergeMethod": vars(acts.examples.ComponentMergeMethod)[pars["merge_method"]],
+        "weightCutoff": pars["weight_cutoff"],
+        "momentumCutoff": pars["momentum_cutoff"],
         "level": acts.logging.ERROR,
-        "mixtureReductionAlgorithm" : vars(acts.examples.MixtureReductionAlgorithm)[reductionAlgorithm],
+        "mixtureReductionAlgorithm" : vars(acts.examples.MixtureReductionAlgorithm)[pars["reduction_alg"]],
     }
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -77,17 +83,19 @@ def run_configuration(pars):
         )
 
     result_row = {}
-    result_row["components"] = components
-    result_row["weight_cutoff"] = weight_cutoff
+    result_row["components"] = pars["components"]
+    result_row["weight_cutoff"] = pars["weight_cutoff"]
     result_row["component_merge_method"] = str(opts["componentMergeMethod"])[21:]
-    result_row["mixture_reduction"] = str(reductionAlgorithm)
-    result_row["bethe_heitler_approx"] = bha
+    result_row["mixture_reduction"] = str(pars["reduction_alg"])
+    result_row["bethe_heitler_approx"] = pars["bha"]
+    result_row["momentum_cutoff"] = pars["momentum_cutoff"]
 
     fitter_timing = timing[timing["identifier"] == "Algorithm:TrackFittingAlgorithm"]
     assert len(fitter_timing) == 1
     result_row["timing"] = float(fitter_timing["time_perevent_s"].iloc[0])
 
-    result_row["n_tracks"] = len(summary_gsf)
+    result_row["n_particles"] = len(particles)
+    result_row["n_failures"] = len(particles) - len(summary_gsf)
     result_row["n_outliers"] = sum(summary_gsf["nOutliers"] > 0)
     result_row["n_holes"] = sum(summary_gsf["nHoles"] > 0)
 
@@ -143,28 +151,50 @@ def run_configuration(pars):
     return iteration_df
 
 
+config = {
+    "components": 12,
+    "weight_cutoff": 1e-6,
+    "momentum_cutoff": 0.1,
+    "bha": "GeantSim_CDF",
+    "merge_method": "maxWeight",
+    "reduction_alg": "KLDistance",
+}
+
 pars = []
 
+def add(d : dict):
+    cfg = config.copy()
+    for k, v in d.items():
+        cfg[k] = v
+    pars.append(cfg)
+
+
 components = [1, 2, 4, 8, 12, 16, 20, 24, 28, 32]
-print("Sweep components:", components)
 for c in components:
-    pars.append((c, 1.0e-4, "maxWeight", "KLDistance", "GeantSim_CDF"))
+    for wc in [1.e-4, 1.e-6]:
+        add({"components": c, "weight_cutoff": wc})
 
-# 1.e-6 already covered above
-weight_cutoff = [1.0e-8, 1.0e-6, 1.0e-2, 1.0e-1]
-print("Sweep weight cutoffs:", weight_cutoff)
-for w in weight_cutoff:
-    pars.append((12, w, "maxWeight", "KLDistance", "GeantSim_CDF"))
 
-pars.append((12, 1.0e-4, "mean", "KLDistance", "GeantSim_CDF"))
-pars.append((12, 1.0e-4, "maxWeight", "weightCut", "GeantSim_CDF"))
+# 1.e-6 and 1.e-4 already covered above
+weight_cutoffs = [1.0e-8, 1.0e-2, 1.0e-1]
+for wc in weight_cutoffs:
+    add({"weight_cutoff": wc})
+
+
+add({"merge_method": "mean"})
+add({"reduction_alg": "weightCut"})
+
 
 for k in bethe_heitler_approxes.keys():
     if k != "GeantSim_CDF":
-        pars.append((12, 1.0e-4, "maxWeight", "KLDistance", k))
+        add({"bha": k})
+
+for mc in [0.0, 0.25, 0.5, 1.0]:
+    add({"momentum_cutoff": mc})
 
 
 print("Grid size:", len(pars))
+
 
 with multiprocessing.Pool(snakemake.config["sim_jobs"]) as pool:
     result_dfs = pool.map(run_configuration, pars)

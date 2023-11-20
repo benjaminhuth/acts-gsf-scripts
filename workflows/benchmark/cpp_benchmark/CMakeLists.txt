@@ -61,12 +61,34 @@ set_target_properties(ActsExamplesTruthTracking PROPERTIES INTERFACE_INCLUDE_DIR
 # add_library(OpenDataDetector SHARED IMPORTED)
 # set_target_properties(OpenDataDetector PROPERTIES IMPORTED_LOCATION "${ACTS_LIB_DIR}/libOpenDataDetector.so")
 
-add_executable(gsf_benchmark main.cpp)
+add_executable(gsf_benchmark gsf.cpp)
+add_executable(kf_benchmark kf.cpp)
 
 target_link_options(gsf_benchmark PRIVATE -Wall -Wpedantic)
+target_link_options(kf_benchmark PRIVATE -Wall -Wpedantic)
 target_compile_options(gsf_benchmark BEFORE PRIVATE -fno-omit-frame-pointer)
+target_compile_options(kf_benchmark BEFORE PRIVATE -fno-omit-frame-pointer)
 
 target_link_libraries(gsf_benchmark
+    ActsExamplesFramework
+    ActsExamplesDD4hep
+    ActsExamplesIoCsv
+    ActsExamplesFitting
+    ActsExamplesTruthTracking
+    ActsExamplesIoRoot
+    ActsExamplesIoJson
+    ActsExamplesDigitization
+    # OpenDataDetector
+    ActsCore
+    ActsPluginDD4hep
+    ActsPluginFpeMonitoring
+    ActsPluginJson
+    TBB::tbb
+    Boost::program_options
+    nlohmann_json::nlohmann_json
+)
+
+target_link_libraries(kf_benchmark
     ActsExamplesFramework
     ActsExamplesDD4hep
     ActsExamplesIoCsv
