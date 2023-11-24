@@ -9,7 +9,7 @@ import acts
 import acts.examples
 from acts.examples.simulation import *
 from acts.examples.reconstruction import *
-from acts.examples.geant4 import GdmlDetectorConstruction
+from acts.examples.geant4 import GdmlDetectorConstructionFactory
 
 import numpy as np
 
@@ -43,13 +43,15 @@ surface_width = 1000
 # to match geant4 geometry
 x_offset = args["surfaces"] * surface_distance / 2
 
+positions = np.arange(-x_offset, args["surfaces"]*surface_distance, surface_distance).tolist()
 telescopeConfig = {
-    "positions": np.arange(-x_offset, args["surfaces"]*surface_distance, surface_distance).tolist(),
+    "positions": positions,
     # "offsets": foo,
     "bounds": [surface_width, surface_width], #[args["surfaces"]*10, args["surfaces"]*10],
     "thickness": 1,
     "surfaceType": 0,
     "binValue": 0,
+    "stereos": len(positions)*[0.0],
 }
 
 # pprint.pprint(telescopeConfig)
@@ -61,8 +63,9 @@ detector, trackingGeometry, decorators = acts.examples.TelescopeDetector.create(
 
 # Geant 4
 gdml_file = "gdml/telescope.gdml"
+Path(gdml_file).parent.mkdir(exist_ok=True)
 make_gdml(gdml_file, args["surfaces"], surface_width, surface_thickness, surface_distance)
-g4detector = GdmlDetectorConstruction(gdml_file)
+g4factory = GdmlDetectorConstructionFactory(gdml_file)
 
 ###################
 # Setup sequencer #
@@ -107,122 +110,15 @@ addParticleGun(
     multiplicity=1000,
 )
 
-if use_geant:
-    addGeant4(
-        s,
-        g4detector,
-        trackingGeometry,
-        field,
-        rnd,
-        outputDirCsv="csv",
-        materialMappings=["G4_Si"],
-    )
-else:
-    addFatras(
-        s,
-        trackingGeometry,
-        field,
-        rnd=rnd,
-        outputDirCsv="csv"
-    )
-
-'''
-addDigitization(
+addGeant4(
     s,
-    trackingGeometry,
-    field,
-    digiConfigFile="telescope-digi-smearing-config.json",
-    # outputDirRoot=outputDir,
+    detector=None,
+    g4DetectorConstructionFactory=g4factory,
+    trackingGeometry=trackingGeometry,
+    field=field,
     rnd=rnd,
-    outputDirCsv=None, #"csv"
+    outputDirCsv="csv",
+    materialMappings=["G4_Si"],
 )
 
-addSeeding(
-    s,
-    trackingGeometry,
-    field,
-    seedingAlgorithm=SeedingAlgorithm.TruthSmeared,
-)
-
-s.addAlgorithm(
-    acts.examples.TruthTrackFinder(
-        level=acts.logging.INFO,
-        inputParticles="truth_seeds_selected",
-        inputMeasurementParticlesMap="measurement_particles_map",
-        outputProtoTracks="prototracks",
-    )
-)
-
-kalmanOptions = {
-    "multipleScattering": True,
-    "energyLoss": True,
-    "reverseFilteringMomThreshold": 0.0,
-    "freeToBoundCorrection": acts.examples.FreeToBoundCorrection(False),
-}
-
-s.addAlgorithm(
-    acts.examples.TrackFittingAlgorithm(
-        level=acts.logging.VERBOSE if args["pick"] != -1 else acts.logging.INFO,
-        inputMeasurements="measurements",
-        inputSourceLinks="sourcelinks",
-        inputProtoTracks="prototracks",
-        inputInitialTrackParameters="estimatedparameters",
-        outputTrajectories="trajectories",
-        directNavigation=False,
-        pickTrack=args["pick"],
-        trackingGeometry=trackingGeometry,
-        dFit=acts.examples.TrackFittingAlgorithm.makeKalmanFitterFunction(
-            field, **kalmanOptions
-        ),
-        fit=acts.examples.TrackFittingAlgorithm.makeKalmanFitterFunction(
-            trackingGeometry, field, **kalmanOptions
-        ),
-    )
-)
-
-gsfOptions = {
-    "maxComponents": args["components"],
-    "abortOnError": False,
-    "disableAllMaterialHandling": False,
-#    "finalReductionMethod": acts.examples.FinalReductionMethod.mean,
-}
-pprint.pprint(gsfOptions)
-
-s.addAlgorithm(
-    acts.examples.TrackFittingAlgorithm(
-        level=acts.logging.VERBOSE if args["pick"] != -1 else acts.logging.INFO,
-        inputMeasurements="measurements",
-        inputSourceLinks="sourcelinks",
-        inputProtoTracks="prototracks",
-        inputInitialTrackParameters="estimatedparameters",
-        outputTrajectories="gsf_trajectories",
-        directNavigation=False,
-        pickTrack=args["pick"],
-        trackingGeometry=trackingGeometry,
-        fit=acts.examples.TrackFittingAlgorithm.makeGsfFitterFunction(
-            trackingGeometry, field, **gsfOptions
-        ),
-    )
-)
-
-s.addWriter(
-    acts.examples.RootTrajectorySummaryWriter(
-        level=acts.logging.INFO,
-        inputTrajectories="gsf_trajectories",
-        inputParticles="truth_seeds_selected",
-        inputMeasurementParticlesMap="measurement_particles_map",
-        filePath=str(outputDir / "root/tracksummary_gsf.root"),
-    )
-)
-
-s.addWriter(
-    acts.examples.RootTrajectorySummaryWriter(
-        level=acts.logging.INFO,
-        inputTrajectories="trajectories",
-        inputParticles="truth_seeds_selected",
-        inputMeasurementParticlesMap="measurement_particles_map",
-        filePath=str(outputDir / "root/tracksummary_kf.root"),
-    )
-)
-'''
 s.run()
