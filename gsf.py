@@ -23,7 +23,7 @@ u = acts.UnitConstants
 
 parser = argparse.ArgumentParser(description='Run GSF sPHENIX')
 parser.add_argument('-p','--pick', help='pick track', type=int, default=-1)
-parser.add_argument('-n','--events', help='number of events', type=int, default=10)
+parser.add_argument('-n','--events', help='number of events', type=int, default=1)
 parser.add_argument('-j','--jobs', help='number of jobs', type=int, default=-1)
 parser.add_argument('-s','--skip', help='number of skipped events', type=int, default=0)
 parser.add_argument('-c','--components', help='number of GSF components', type=int, default=4)
@@ -107,7 +107,7 @@ addParticleGun(
     vtxGen=acts.examples.GaussianVertexGenerator(
         stddev=acts.Vector4(0, 0, 0, 0), mean=acts.Vector4(0, 0, 0, 0)
     ),
-    multiplicity=1000,
+    multiplicity=1,
 )
 
 addGeant4(
@@ -119,6 +119,7 @@ addGeant4(
     rnd=rnd,
     outputDirCsv="csv",
     materialMappings=["G4_Si"],
+    logLevel=acts.logging.VERBOSE,
 )
 
 s.run()
