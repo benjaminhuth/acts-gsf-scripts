@@ -25,7 +25,7 @@ rule fit_masses_scipy:
         "tmp/masses_gsf.csv",
         "tmp/masses_kf.csv",
     output:
-        "plots/z0_mass_fit_scipy.png"
+        "plots/z0_mass_fit_scipy.pdf"
     script:
         "scripts/fit_zmass_scipy.py"
 
@@ -35,7 +35,7 @@ rule fit_masses_root:
         "tmp/masses_gsf.csv",
         "tmp/masses_kf.csv",
     output:
-        "plots/z0_mass_fit_root.png"
+        "plots/z0_mass_fit_root.pdf"
     script:
         "scripts/fit_zmass_root.py"
 
@@ -43,5 +43,5 @@ rule fit_masses_root:
 rule all:
     default_target: True
     input:
-        "plots/z0_mass_fit_scipy.png",
-        "plots/z0_mass_fit_root.png"
+        "plots/z0_mass_fit_scipy.pdf",
+        "plots/z0_mass_fit_root.pdf"

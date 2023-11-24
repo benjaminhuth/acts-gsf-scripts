@@ -11,10 +11,10 @@ from utils import *
 z0_masses_gsf = pd.read_csv(snakemake.input[0])
 z0_masses_kf = pd.read_csv(snakemake.input[1])
 
-valrange=(0,150)
+valrange=(0,300)
 
 x = ROOT.RooRealVar("x", "x", *valrange)
-mean = ROOT.RooRealVar("mean", "mean", 0, 150)
+mean = ROOT.RooRealVar("mean", "mean", *valrange)
 width = ROOT.RooRealVar("width", "width", 0, 50)
 
 pdf = ROOT.RooBreitWigner("pdf", "pdf", x, mean, width)
@@ -27,6 +27,7 @@ arglist.Add(ROOT.RooFit.PrintLevel(-1))
 def fit_with_root(masses, bins=20):
     bin_weights, bin_edges = np.histogramdd(masses, bins=bins, range=[valrange])
 
+    # Note that this is NON-RELATIVISTIC!!!
     datahist = ROOT.RooDataHist.from_numpy(bin_weights, [x], bins=bin_edges)
     res = pdf.chi2FitTo(datahist, arglist)
 

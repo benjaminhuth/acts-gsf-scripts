@@ -12,6 +12,8 @@ def fit_with_root(masses, bins=20, valrange=(75, 125)):
     sigma = ROOT.RooRealVar("sigma", "sigma", 0, 10)
 
     datahist = ROOT.RooDataHist.from_numpy(bin_weights, [x], bins=bin_edges)
+    
+    # Note that this is NON-RELATIVISTIC!!!
     pdf = ROOT.RooVoigtian("pdf", "pdf", x, mean, width, sigma)
 
     arglist = ROOT.RooLinkedList()
