@@ -12,8 +12,8 @@ def preprocess_tracksummary(tracksummary_gsf, tracksummary_kf):
     tracksummary_kf = tracksummary_kf.groupby("event_nr").apply(f).reset_index(drop=True)
 
     # Unify index
-    tracksummary_gsf = tracksummary_gsf.set_index(["event_nr", "multiTraj_nr"]).copy()
-    tracksummary_kf = tracksummary_kf.set_index(["event_nr", "multiTraj_nr"]).copy()
+    tracksummary_gsf = tracksummary_gsf.set_index(["event_nr", "track_nr"]).copy()
+    tracksummary_kf = tracksummary_kf.set_index(["event_nr", "track_nr"]).copy()
 
     unified_index = tracksummary_gsf.index.intersection(tracksummary_kf.index)
 

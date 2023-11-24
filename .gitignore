@@ -12,6 +12,9 @@ output*
 test*
 old
 
+*.png
+*.pdf
+
 gdml
 timing.tsv
 __pycache__

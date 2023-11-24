@@ -35,7 +35,7 @@ def plot_binned(ax, binning_data, stat_data, bins, stat, **kwargs):
 hole_mask =  df.nHoles > 0
 outlier_mask = df.nOutliers > 0
 
-fig, axes = plt.subplots(2,3,figsize=(12,5))
+fig, axes = plt.subplots(3,2,figsize=(12,8))
 
 color = "tab:grey"
 opts = dict(fmt="none", color=color)
@@ -46,8 +46,9 @@ pt_bins = np.linspace(0,100,20)
 xbins = [eta_bins, pt_bins]
 binning_keys = ["t_eta", "t_pT"]
 labels = ["$\eta$", "$p_T$ [GeV]"]
+ax_cols = [axes[:,0], axes[:,1] ]
 
-for axrow, bin_key, label, bins in zip(axes, binning_keys, labels, xbins):
+for axrow, bin_key, label, bins in zip(ax_cols, binning_keys, labels, xbins):
     x = bins[:-1]+0.5*np.diff(bins)
     w = np.diff(bins)
     

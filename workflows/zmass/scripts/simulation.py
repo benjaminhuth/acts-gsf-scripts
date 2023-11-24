@@ -153,13 +153,12 @@ high_bhapprox = "/home/benjamin/Documents/athena/Tracking/TrkFitter/TrkGaussianS
 
 gsfOptions = {
     "maxComponents": 12,
-    "abortOnError": False,
-    "disableAllMaterialHandling": False,
     "betheHeitlerApprox": acts.examples.AtlasBetheHeitlerApprox.loadFromFiles(
         low_bhapprox,
         high_bhapprox,
     ),
     "componentMergeMethod": acts.examples.ComponentMergeMethod.maxWeight,
+    "mixtureReductionAlgorithm": acts.examples.MixtureReductionAlgorithm.KLDistance,
     "weightCutoff": 1.0e-4,
     "level": acts.logging.FATAL,
 }
@@ -185,18 +184,10 @@ for fitter, function in zip(["gsf", "kf"], [gsfFitter, kalmanFitter]):
         )
     )
 
-    s.addAlgorithm(
-        acts.examples.TracksToTrajectories(
-            level=acts.logging.WARNING,
-            inputTracks=tracks,
-            outputTrajectories=trajectories,
-        )
-    )
-
     s.addWriter(
-        acts.examples.RootTrajectorySummaryWriter(
+        acts.examples.RootTrackSummaryWriter(
             level=acts.logging.ERROR,
-            inputTrajectories=trajectories,
+            inputTracks=tracks,
             inputParticles="truth_seeded_particles",
             inputMeasurementParticlesMap="measurement_particles_map",
             filePath=str(outputDir / "tracksummary_{}.root".format(fitter)),
@@ -204,9 +195,9 @@ for fitter, function in zip(["gsf", "kf"], [gsfFitter, kalmanFitter]):
     )
 
     s.addWriter(
-        acts.examples.RootTrajectoryStatesWriter(
+        acts.examples.RootTrackStatesWriter(
             level=acts.logging.ERROR,
-            inputTrajectories=trajectories,
+            inputTracks=tracks,
             inputParticles="truth_seeded_particles",
             inputSimHits="simhits",
             inputMeasurementParticlesMap="measurement_particles_map",
