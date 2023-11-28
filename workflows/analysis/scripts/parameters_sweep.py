@@ -59,7 +59,7 @@ def run_configuration(pars):
         ),
         "componentMergeMethod": vars(acts.examples.ComponentMergeMethod)[pars["merge_method"]],
         "weightCutoff": pars["weight_cutoff"],
-        "momentumCutoff": pars["momentum_cutoff"],
+        # "momentumCutoff": pars["momentum_cutoff"],
         "level": acts.logging.ERROR,
         "mixtureReductionAlgorithm" : vars(acts.examples.MixtureReductionAlgorithm)[pars["reduction_alg"]],
     }
@@ -88,7 +88,7 @@ def run_configuration(pars):
     result_row["component_merge_method"] = str(opts["componentMergeMethod"])[21:]
     result_row["mixture_reduction"] = str(pars["reduction_alg"])
     result_row["bethe_heitler_approx"] = pars["bha"]
-    result_row["momentum_cutoff"] = pars["momentum_cutoff"]
+    # result_row["momentum_cutoff"] = pars["momentum_cutoff"]
 
     fitter_timing = timing[timing["identifier"] == "Algorithm:TrackFittingAlgorithm"]
     assert len(fitter_timing) == 1
@@ -154,7 +154,7 @@ def run_configuration(pars):
 config = {
     "components": 12,
     "weight_cutoff": 1e-6,
-    "momentum_cutoff": 0.1,
+    # "momentum_cutoff": 0.1,
     "bha": "GeantSim_CDF",
     "merge_method": "maxWeight",
     "reduction_alg": "KLDistance",
@@ -189,8 +189,8 @@ for k in bethe_heitler_approxes.keys():
     if k != "GeantSim_CDF":
         add({"bha": k})
 
-for mc in [0.0, 0.25, 0.5, 1.0]:
-    add({"momentum_cutoff": mc})
+# for mc in [0.0, 0.25, 0.5, 1.0]:
+#     add({"momentum_cutoff": mc})
 
 
 print("Grid size:", len(pars))

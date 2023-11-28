@@ -13,19 +13,21 @@ bha = acts.examples.AtlasBetheHeitlerApprox.loadFromFiles(
     highLimit=0.3,
 )
 
-# bha = acts.examples.AtlasBetheHeitlerApprox.loadFromFiles(
-#     lowParametersPath="config/BetheHeitler_cdf_nC6_O5.par",
-#     highParametersPath="config/BetheHeitler_cdf_nC6_O5.par",
-#     lowLimit=0.1,
-#     highLimit=0.2,
-# )
+if "use_non_geant_bha" in vars(snakemake.params) and snakemake.params["use_non_geant_bha"]:
+    print("INFO    Use 'BetheHeitler_cdf_nC6_O5.par' instead of Geant4 based approximation")
+    bha = acts.examples.AtlasBetheHeitlerApprox.loadFromFiles(
+        lowParametersPath="config/BetheHeitler_cdf_nC6_O5.par",
+        highParametersPath="config/BetheHeitler_cdf_nC6_O5.par",
+        lowLimit=0.1,
+        highLimit=0.2,
+    )
 
 gsfOptions = {
     "maxComponents": snakemake.params["components"],
     "betheHeitlerApprox": bha,
     "componentMergeMethod": acts.examples.ComponentMergeMethod.maxWeight,
     "weightCutoff": snakemake.params["weight_cutoff"],
-    "momentumCutoff": 0.1,
+    # "momentumCutoff": 0.1,
     "level": acts.logging.ERROR,
     "mixtureReductionAlgorithm": acts.examples.MixtureReductionAlgorithm.KLDistance,
 }

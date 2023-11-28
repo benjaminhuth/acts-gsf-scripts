@@ -19,7 +19,7 @@ def uproot_to_pandas(summary, states=None):
         "measurementLayer",
         "outlierVolume",
         "outlierLayer",
-    ] + [ k for k in summary.keys() if "gsf" in k ]
+    ] #+ [ k for k in summary.keys() if "gsf" in k ]
     
     summary_keys = [k for k in summary.keys() if not k in exclude_from_summary_keys]
 

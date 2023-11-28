@@ -184,6 +184,7 @@ def run_fitting(
             inputParticles="truth_seeded_particles",
             inputMeasurementParticlesMap="measurement_particles_map",
             filePath=str(outputDir / "tracksummary_{}.root".format(fitter)),
+            writeGsfSpecific=(fitter == "gsf")
         )
     )
 

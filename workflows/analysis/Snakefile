@@ -169,17 +169,6 @@ rule pickle_summary:
         "tmp/{dataset}/{fitter1}/tracksummary_{fitter2}.pickle"
     script:
         "scripts/pickle.py"
-        
-rule momentum_last_surface:
-    input:
-        "tmp/10GeV/gsf12/tracksummary_gsf.pickle",
-        "tmp/10GeV/kf/tracksummary_kf.pickle",
-    output:
-        "plots/momentum_at_last_surface.pdf",
-        "plots/momentum_at_last_surface_center.pdf",
-        "plots/momentum_at_last_surface_bad_samples.pdf",
-    script:
-        "scripts/plot_momentum_last_surface.py"
     
         
 rule plot_sweep:
@@ -191,7 +180,6 @@ rule plot_sweep:
         "plots/sweep_component_merge_method.pdf",
         "plots/sweep_reduction_algorithm.pdf",
         "plots/sweep_bh_approx.pdf",
-        "plots/sweep_momentum_cutoff.pdf",
         "plots/sweep_overview.pdf",
     params:
         fix_components=12,
@@ -226,6 +214,34 @@ rule plot_cummulative_res:
         "plots/cummulative_res.pdf"
     script:
         "scripts/plot_cummulative_residual.py"
+        
+rule run_gsf_12_10GeV_different_bha:
+    output:
+        "tmp/10GeV/gsf12_simple_bha/tracksummary_gsf.root",
+        "tmp/10GeV/gsf12_simple_bha/trackstates_gsf.root",
+    input:
+        "tmp/10GeV/particles.root",
+        "tmp/10GeV/hits.root",
+    params:
+        components=12,
+        weight_cutoff=1e-6,
+        seeding="smeared",
+        use_non_geant_bha=True
+    script:
+        "scripts/run_gsf.py"
+
+
+rule momentum_last_surface:
+    input:
+        "tmp/10GeV/{gsf}/tracksummary_gsf.pickle",
+        "tmp/10GeV/kf/tracksummary_kf.pickle",
+    output:
+        "plots/momentum_at_last_surface_{gsf}.pdf",
+        "plots/momentum_at_last_surface_center_{gsf}.pdf",
+        "plots/momentum_at_last_surface_bad_samples_{gsf}.pdf",
+    script:
+        "scripts/plot_momentum_last_surface.py"
+
 
 rule all:
     default_target: True
@@ -242,5 +258,6 @@ rule all:
         "plots/kf_muon_vs_gsf_electron.pdf",
         "plots/outliers_holes.pdf",
         "plots/cummulative_res.pdf",
-        "plots/momentum_at_last_surface.pdf",
+        "plots/momentum_at_last_surface_gsf12.pdf",
+        "plots/momentum_at_last_surface_gsf12_simple_bha.pdf",
         "plots/sweep_bh_approx.pdf",

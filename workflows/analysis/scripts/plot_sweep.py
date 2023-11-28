@@ -62,7 +62,7 @@ fix = {
     "component merging": "maxWeight",
     "mixture reduction": "KLDistance",
     "BH Approx": "GeantSim_CDF",
-    "momentum cutoff": 0.1,
+    # "momentum cutoff": 0.1,
 }
 
 pd.set_option('display.max_rows', 500)
@@ -136,10 +136,10 @@ fig4.tight_layout()
 fig4.savefig(snakemake.output[4])
 
 # Momentum cutoff
-fig5, ax = make_coordinates_plot("momentum cutoff", figsize=(10, 3), cmap=cmap)
-fig5.suptitle(f"Performance metrics for varying momentum cutoffs")
-fig5.tight_layout()
-fig5.savefig(snakemake.output[5])
+# fig5, ax = make_coordinates_plot("momentum cutoff", figsize=(10, 3), cmap=cmap)
+# fig5.suptitle(f"Performance metrics for varying momentum cutoffs")
+# fig5.tight_layout()
+# fig5.savefig(snakemake.output[5])
 
 
 
@@ -174,7 +174,7 @@ ax.errorbar([ chosen[kMode] ], [ chosen[kQ95] ],
 ax.legend(loc="upper right")
 ax.set_title("GSF performance metrics for different configurations")
 fig.tight_layout()
-fig.savefig(snakemake.output[6])
+fig.savefig(snakemake.output[5])
 
 
 # maybe show
