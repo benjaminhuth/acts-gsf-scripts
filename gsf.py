@@ -12,9 +12,6 @@ from acts.examples.reconstruction import *
 from acts.examples.geant4 import GdmlDetectorConstructionFactory
 
 import numpy as np
-
-from gdml_telescope import *
-
 u = acts.UnitConstants
 
 #####################
@@ -63,8 +60,6 @@ detector, trackingGeometry, decorators = acts.examples.TelescopeDetector.create(
 
 # Geant 4
 gdml_file = "gdml/telescope.gdml"
-Path(gdml_file).parent.mkdir(exist_ok=True)
-make_gdml(gdml_file, args["surfaces"], surface_width, surface_thickness, surface_distance)
 g4factory = GdmlDetectorConstructionFactory(gdml_file)
 
 ###################
