@@ -131,7 +131,7 @@ fig4.savefig(snakemake.output[3])
 
 # BHA
 fig4, ax = make_coordinates_plot("BH Approx", figsize=(10, 3), cmap=cmap)
-fig4.suptitle(f"Performance metrics for varying mixture reduction algorithms")
+fig4.suptitle(f"Performance metrics for varying Bethe-Heitler approximations")
 fig4.tight_layout()
 fig4.savefig(snakemake.output[4])
 

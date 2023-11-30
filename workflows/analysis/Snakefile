@@ -192,8 +192,10 @@ rule plot_eloss_correlation:
         "tmp/10GeV/gsf12/tracksummary_gsf.pickle",
         "tmp/10GeV/kf/tracksummary_kf.pickle",
     output:
-        "plots/correlation_res_total_eloss.pdf",
-        "plots/correlation_res_eloss_first_surface.pdf",
+        "plots/correlation_qop_total_eloss.pdf",
+        "plots/correlation_qop_eloss_first_surface.pdf",
+        "plots/correlation_p_total_eloss.pdf",
+        "plots/correlation_p_eloss_first_surface.pdf",
     script:
         "scripts/plot_eloss_correlation.py"
 
@@ -253,8 +255,10 @@ rule all:
         "plots/res_vs_eta_pt.pdf",
         "plots/sweep_components.pdf",
         "plots/sweep_weight_cutoff.pdf",
-        "plots/correlation_res_total_eloss.pdf",
-        "plots/correlation_res_eloss_first_surface.pdf",
+        "plots/correlation_qop_total_eloss.pdf",
+        "plots/correlation_qop_eloss_first_surface.pdf",
+        "plots/correlation_p_total_eloss.pdf",
+        "plots/correlation_p_eloss_first_surface.pdf",
         "plots/kf_muon_vs_gsf_electron.pdf",
         "plots/outliers_holes.pdf",
         "plots/cummulative_res.pdf",
